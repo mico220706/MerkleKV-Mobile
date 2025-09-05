@@ -264,10 +264,11 @@ void main() async {
 ## 🧪 Testing Strategy
 
 1. **Unit Tests**: Test individual components in isolation
-2. **Integration Tests**: Test MQTT communication patterns
-3. **Replication Tests**: Verify data consistency across devices
-4. **Performance Tests**: Measure throughput and latency
-5. **Network Resilience**: Test reconnection and offline behavior
+2. Unit tests for core components
+3. Mock-based tests for MQTT communication
+4. Integration tests with real MQTT brokers
+5. Flutter-specific integration tests
+6. End-to-end tests in a real mobile environment
 
 ## 📊 Performance Considerations
 
