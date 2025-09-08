@@ -1,0 +1,6 @@
+# melos_managed_dependency_overrides: merkle_kv_core,merkle_kv_mobile
+dependency_overrides:
+  merkle_kv_core:
+    path: ../../packages/merkle_kv_core
+  merkle_kv_mobile:
+    path: ../../packages/merkle_kv_mobile

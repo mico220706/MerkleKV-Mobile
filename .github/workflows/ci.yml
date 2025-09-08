@@ -1,0 +1,77 @@
+# Continuous Integration Workflow
+# 
+# This is a minimal CI workflow focused on the essentials for MerkleKV Mobile.
+# Unlike the previous setup with multiple separate workflows (docs.yml, lint.yml, 
+# test.yml, integration.yml), this consolidates everything into a single, 
+# streamlined pipeline that only runs when code changes.
+#
+# Key simplifications from the old setup:
+# - No heavy Android/iOS builds (removed build matrix)
+# - No React Native compilation (just Dart/Flutter focus)
+# - No documentation deployment or link checking
+# - No security scanning or coverage uploads
+# - No cross-platform matrix testing
+# - Single job with essential checks only
+
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+    # Only trigger on relevant code changes, not docs/README updates
+    paths:
+      - '**.dart'
+      - '**.yaml'
+      - '**.yml'
+      - 'melos.yaml'
+      - 'pubspec.yaml'
+      - 'packages/**'
+      - 'apps/**'
+      - '.github/workflows/ci.yml'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - '**.dart'
+      - '**.yaml'
+      - '**.yml'
+      - 'melos.yaml'
+      - 'pubspec.yaml'
+      - 'packages/**'
+      - 'apps/**'
+      - '.github/workflows/ci.yml'
+
+# Cancel duplicate runs when new commits are pushed
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Single job that handles all essential CI tasks
+  ci:
+    name: CI Checks
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
+      - name: Setup Flutter SDK (stable channel)
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 'stable'
+          channel: 'stable'
+          
+      - name: Install Melos
+        run: dart pub global activate melos
+        
+      - name: Bootstrap monorepo
+        run: melos bootstrap
+        
+      - name: Check formatting
+        run: flutter format --set-exit-if-changed .
+        
+      - name: Analyze code
+        run: dart analyze
+        
+      - name: Run tests
+        run: melos run test
