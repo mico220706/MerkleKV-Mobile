@@ -1,0 +1,47 @@
+{
+  "name": "merkle-kv-mobile-workspace",
+  "version": "1.0.0",
+  "description": "MerkleKV Mobile monorepo workspace with development tooling",
+  "private": true,
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "setup": "dart pub global activate melos && melos bootstrap",
+    "clean": "melos clean && rm -rf node_modules",
+    "bootstrap": "melos bootstrap",
+    "analyze": "melos run analyze",
+    "test": "melos run test",
+    "test:coverage": "melos run coverage",
+    "format": "melos run format && prettier --write .",
+    "lint": "eslint . --ext .js,.ts,.tsx && melos run analyze",
+    "lint:fix": "eslint . --ext .js,.ts,.tsx --fix && melos run format",
+    "build": "melos run build",
+    "build:flutter": "melos run build:flutter",
+    "docs:build": "cd docs && bundle exec jekyll build",
+    "docs:serve": "cd docs && bundle exec jekyll serve",
+    "broker:start": "cd broker/mosquitto && docker-compose up -d",
+    "broker:stop": "cd broker/mosquitto && docker-compose down",
+    "broker:logs": "cd broker/mosquitto && docker-compose logs -f",
+    "version:check": "melos version --dry-run",
+    "version:update": "melos version --no-private",
+    "publish": "melos publish --no-private"
+  },
+  "devDependencies": {
+    "@typescript-eslint/eslint-plugin": "^6.0.0",
+    "@typescript-eslint/parser": "^6.0.0",
+    "eslint": "^8.50.0",
+    "eslint-config-prettier": "^9.0.0",
+    "eslint-plugin-react": "^7.33.0",
+    "eslint-plugin-react-native": "^4.1.0",
+    "prettier": "^3.0.0",
+    "typescript": "^5.2.0",
+    "markdownlint-cli": "^0.37.0",
+    "yaml-lint": "^1.7.0"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
+  }
+}

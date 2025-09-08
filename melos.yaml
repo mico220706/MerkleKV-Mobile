@@ -1,0 +1,55 @@
+name: merkle_kv_mobile
+repository: https://github.com/mico220706/MerkleKV-Mobile
+
+packages:
+  - packages/**
+  - apps/**
+
+command:
+  version:
+    workspaceChangelog: true
+    linkToCommits: true
+  bootstrap:
+    runPubGetInParallel: false
+    usePubspecOverrides: true
+
+scripts:
+  analyze:
+    run: dart analyze
+    exec:
+      failFast: true
+  
+  test:
+    run: dart test
+    exec:
+      failFast: true
+  
+  format:
+    run: dart format --set-exit-if-changed .
+    exec:
+      failFast: true
+  
+  build:flutter:
+    run: flutter build apk
+    packageFilters:
+      flutter: true
+  
+  clean:
+    run: flutter clean && dart pub get
+    exec:
+      failFast: true
+
+  coverage:
+    run: dart test --coverage=coverage && dart run coverage:format_coverage --lcov --in=coverage --out=coverage/lcov.info --packages=.dart_tool/package_config.json --report-on=lib
+    exec:
+      failFast: true
+
+  deps:get:
+    run: dart pub get
+    exec:
+      failFast: true
+
+  deps:upgrade:
+    run: dart pub upgrade
+    exec:
+      failFast: true
