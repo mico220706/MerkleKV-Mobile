@@ -1,0 +1,80 @@
+# Ignore build outputs
+build/
+.dart_tool/
+.packages
+.pub/
+
+# Flutter specific
+.flutter-plugins
+.flutter-plugins-dependencies
+.fvm/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*.iml
+
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# React Native
+*.log
+.expo/
+.expo-shared/
+
+# Android
+*.keystore
+!debug.keystore
+android/app/release/
+android/key.properties
+
+# iOS
+ios/Pods/
+ios/Runner.xcworkspace/xcuserdata/
+ios/Runner.xcodeproj/xcuserdata/
+ios/Flutter/flutter_assets/
+ios/ServiceDefinitions.json
+ios/Runner/GeneratedPluginRegistrant.*
+
+# Docker
+.env
+docker-compose.override.yml
+
+# Certificates and secrets
+*.key
+*.crt
+*.p12
+*.pem
+config/passwd
+config/tls/
+
+# Logs
+*.log
+logs/
+
+# Coverage
+coverage/
+*.lcov
+
+# Temporary files
+*.tmp
+*.temp
+.cache/
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Backup files
+*.bak
+*.backup
