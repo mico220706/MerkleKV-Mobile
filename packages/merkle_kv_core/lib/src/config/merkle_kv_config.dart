@@ -261,14 +261,8 @@ class MerkleKVConfig {
       );
     }
 
-    // Validate persistence requirements
-    if (persistenceEnabled &&
-        (storagePath == null || storagePath.trim().isEmpty)) {
-      throw const InvalidConfigException(
-        'Storage path must be provided when persistence is enabled',
-        'storagePath',
-      );
-    }
+    // Allow null storagePath; StorageFactory will resolve a default temp path if needed
+    // when persistence is enabled but no path is specified.
 
     // Normalize topic prefix
     String normalizedPrefix = topicPrefix.trim();
