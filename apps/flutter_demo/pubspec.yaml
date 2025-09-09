@@ -1,5 +1,6 @@
 name: flutter_demo
 description: Flutter demo application for MerkleKV Mobile
+publish_to: none
 
 version: 1.0.0+1
 
