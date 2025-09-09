@@ -9,12 +9,12 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => MaterialApp(
-      title: 'MerkleKV Demo',
-      theme: ThemeData(
-        primarySwatch: Colors.blue,
-      ),
-      home: const MyHomePage(title: 'MerkleKV Mobile Demo'),
-    );
+        title: 'MerkleKV Demo',
+        theme: ThemeData(
+          primarySwatch: Colors.blue,
+        ),
+        home: const MyHomePage(title: 'MerkleKV Mobile Demo'),
+      );
 }
 
 class MyHomePage extends StatefulWidget {
@@ -29,22 +29,22 @@ class MyHomePage extends StatefulWidget {
 class _MyHomePageState extends State<MyHomePage> {
   @override
   Widget build(BuildContext context) => Scaffold(
-      appBar: AppBar(
-        title: Text(widget.title),
-      ),
-      body: const Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: <Widget>[
-            Text(
-              'MerkleKV Mobile Demo',
-              style: TextStyle(fontSize: 24),
-            ),
-            Text(
-              'Package structure initialized successfully!',
-            ),
-          ],
+        appBar: AppBar(
+          title: Text(widget.title),
         ),
-      ),
-    );
+        body: const Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: <Widget>[
+              Text(
+                'MerkleKV Mobile Demo',
+                style: TextStyle(fontSize: 24),
+              ),
+              Text(
+                'Package structure initialized successfully!',
+              ),
+            ],
+          ),
+        ),
+      );
 }
