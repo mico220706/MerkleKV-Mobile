@@ -14,6 +14,13 @@ Specification v1.0 compliance.
 - **MQTT Client Layer** (Locked Spec §6): Connection lifecycle, exponential backoff with jitter (±20%), Clean Start=false, Session Expiry=24h, LWT, QoS=1 & retain=false, TLS enforcement with credentials.
 - **Topic scheme + router** (canonical §2) with validation, QoS enforcement, and auto re-subscribe.
 - **Command Correlation Layer** (Locked Spec §3.1-3.2): Request/response correlation with UUIDv4 IDs, monotonic timeouts (10s/20s/30s), deduplication cache (10min TTL, LRU), payload validation (512 KiB limit), structured logging, async/await API.
+- **Storage Engine** (Issue #6, Locked Spec §5.1, §5.6, §8): Complete in-memory storage implementation with optional persistence:
+  - In-memory key-value store with Last-Write-Wins conflict resolution using `(timestampMs, nodeId)` ordering
+  - Tombstone lifecycle management with 24-hour retention and garbage collection per §5.6
+  - Optional persistence with append-only JSON format, SHA-256 integrity checksums, and corruption recovery
+  - UTF-8 size validation per §11: keys ≤256 bytes, values ≤256 KiB with multi-byte character support
+  - StorageEntry model with version vectors, StorageInterface abstraction, InMemoryStorage implementation, and StorageFactory
+  - Comprehensive unit tests covering LWW edge cases, tombstone GC, persistence round-trip, and UTF-8 boundaries
 - **Tests**: 28 tests for config, 21 tests for MQTT client, 45+ tests for command correlation; statistical jitter validation; subscription and publish enforcement.
 - Initial repository structure and development setup
 - Comprehensive automation scripts for GitHub issue management

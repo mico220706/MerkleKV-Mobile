@@ -40,6 +40,84 @@ The system provides:
   - `keepAliveSeconds=60`, `sessionExpirySeconds=86400`, `skewMaxFutureMs=300000`, `tombstoneRetentionHours=24`.
 - **MQTT Client Layer** (Locked Spec §6): Connection lifecycle, exponential backoff (1s→32s, jitter ±20%), session persistence (Clean Start=false, Session Expiry=24h), LWT, QoS=1 & retain=false enforcement, TLS when credentials present.
 - **Command Correlation Layer** (Locked Spec §3.1-3.2): Request/response correlation with UUIDv4 generation, operation-specific timeouts (10s/20s/30s), deduplication cache (10min TTL, LRU eviction), payload size validation (512 KiB limit), structured logging, and async/await API over MQTT.
+- **Storage Engine** (Locked Spec §5.1, §5.6, §8): In-memory key-value store with UTF-8 support, Last-Write-Wins conflict resolution using `(timestampMs, nodeId)` ordering, tombstone management with 24-hour retention and garbage collection, optional persistence with SHA-256 checksums and corruption recovery, size constraints (keys ≤256B, values ≤256KiB UTF-8).
+
+### Storage Engine Features
+
+The core storage engine provides:
+
+- **In-memory key-value operations** with concurrent-safe access
+- **Last-Write-Wins conflict resolution** per Locked Spec §5.1:
+  - Primary ordering by `timestampMs` (wall clock)
+  - Tiebreaker by `nodeId` (lexicographic)
+  - Duplicate detection for identical version vectors
+- **Tombstone lifecycle management** per Locked Spec §5.6:
+  - Delete operations create tombstones (24-hour retention)
+  - Automatic garbage collection of expired tombstones
+  - Read-your-writes consistency (tombstones return null)
+- **Optional persistence** with integrity guarantees:
+  - Append-only JSON Lines format with SHA-256 checksums
+  - Corruption recovery (skip bad records, continue loading)
+  - Atomic file operations prevent data loss
+- **UTF-8 size validation** per Locked Spec §11:
+  - Keys: ≤256 bytes UTF-8 encoded
+  - Values: ≤256 KiB bytes UTF-8 encoded
+  - Multi-byte character boundary handling
+
+### Quick Storage Example
+
+```dart
+import 'package:merkle_kv_core/merkle_kv_core.dart';
+
+// Configuration with persistence disabled (in-memory only)
+final config = MerkleKVConfig(
+  mqttHost: 'broker.example.com',
+  clientId: 'mobile-device-1',
+  nodeId: 'device-uuid-123',
+  persistenceEnabled: false,
+);
+
+// Create storage instance
+final storage = StorageFactory.create(config);
+await storage.initialize();
+
+// Store data with version vector
+final entry = StorageEntry.value(
+  key: 'user:123',
+  value: 'John Doe',
+  timestampMs: DateTime.now().millisecondsSinceEpoch,
+  nodeId: config.nodeId,
+  seq: 1,
+);
+
+await storage.put('user:123', entry);
+
+// Retrieve data
+final retrieved = await storage.get('user:123');
+print(retrieved?.value); // "John Doe"
+
+// Clean up
+await storage.dispose();
+```
+
+For persistence-enabled storage:
+
+```dart
+// Configuration with persistence enabled
+final persistentConfig = MerkleKVConfig(
+  mqttHost: 'broker.example.com',
+  clientId: 'mobile-device-1',
+  nodeId: 'device-uuid-123',
+  persistenceEnabled: true,
+  storagePath: '/app/storage', // Platform-appropriate path
+);
+
+// Storage survives app restarts
+final persistentStorage = StorageFactory.create(persistentConfig);
+await persistentStorage.initialize(); // Loads existing data
+
+// Data persists across sessions with integrity checks
+```
 
 ## 🏗️ Architecture
 
