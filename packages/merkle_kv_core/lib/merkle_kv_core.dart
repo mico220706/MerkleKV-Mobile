@@ -16,5 +16,10 @@ export 'src/mqtt/mqtt_client_impl.dart';
 export 'src/mqtt/topic_scheme.dart';
 export 'src/mqtt/topic_router.dart';
 
+// Commands and Correlation
+export 'src/commands/command.dart';
+export 'src/commands/response.dart';
+export 'src/commands/command_correlator.dart';
+
 // Core exports will be added in future phases
 // export 'src/merkle_kv_mobile.dart';

@@ -13,7 +13,8 @@ Specification v1.0 compliance.
 - **MerkleKVConfig** (Locked Spec §11): Immutable config, defaults, validation, secure JSON (secrets excluded), `copyWith`, `defaultConfig`.
 - **MQTT Client Layer** (Locked Spec §6): Connection lifecycle, exponential backoff with jitter (±20%), Clean Start=false, Session Expiry=24h, LWT, QoS=1 & retain=false, TLS enforcement with credentials.
 - **Topic scheme + router** (canonical §2) with validation, QoS enforcement, and auto re-subscribe.
-- **Tests**: 28 tests for config, 21 tests for MQTT client; statistical jitter validation; subscription and publish enforcement.
+- **Command Correlation Layer** (Locked Spec §3.1-3.2): Request/response correlation with UUIDv4 IDs, monotonic timeouts (10s/20s/30s), deduplication cache (10min TTL, LRU), payload validation (512 KiB limit), structured logging, async/await API.
+- **Tests**: 28 tests for config, 21 tests for MQTT client, 45+ tests for command correlation; statistical jitter validation; subscription and publish enforcement.
 - Initial repository structure and development setup
 - Comprehensive automation scripts for GitHub issue management
 - Project board automation with milestone-based organization

@@ -187,6 +187,16 @@ Production-ready message broker with security features:
 - Defaults: `keepAlive=60`, `sessionExpiry=86400`, `skewMaxFutureMs=300000`, `tombstoneRetentionHours=24`.
 - Validation prevents invalid ports/timeouts and enforces storage path when persistence is enabled.
 
+### Command Correlation Layer (Locked Spec §3.1-3.2)
+
+- **Request/Response Correlation:** UUIDv4 generation for empty IDs; ID validation (1-64 chars, UUIDv4 format for 36-char IDs).
+- **Timeouts:** Monotonic timers with operation-specific durations (10s single-key, 20s multi-key, 30s sync).
+- **Deduplication Cache:** 10-minute TTL with LRU eviction (max 1000 entries); idempotent replay for duplicate requests.
+- **Payload Validation:** UTF-8 byte length ≤ 512 KiB; early rejection with PAYLOAD_TOO_LARGE error.
+- **Error Handling:** Standardized codes (INVALID_REQUEST=100, TIMEOUT=101, IDEMPOTENT_REPLAY=102, PAYLOAD_TOO_LARGE=103, INTERNAL_ERROR=199).
+- **Async API:** Future-based interface over MQTT publish/subscribe with structured lifecycle logging.
+- **Late Response Handling:** Responses arriving after timeout are cached if within dedup window but don't complete expired futures.
+
 ## 📡 Communication Patterns
 
 ### Topic Structure
