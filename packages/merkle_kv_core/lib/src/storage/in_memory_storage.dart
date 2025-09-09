@@ -297,7 +297,17 @@ class InMemoryStorage implements StorageInterface {
       await tempFile.writeAsString('$record\n', mode: FileMode.append);
     }
 
-    // Atomically replace the original file
-    await tempFile.rename(target.path);
+    // Atomically replace the original file with robust fallback
+    try {
+      await tempFile.rename(target.path);
+    } on FileSystemException {
+      // Fallback: handle ENOENT/EXDEV (tmp or target dir issues / cross-device)
+      try {
+        await tempFile.copy(target.path);
+        await tempFile.delete();
+      } catch (_) {
+        rethrow; // preserve original failure if fallback also fails
+      }
+    }
   }
 }
