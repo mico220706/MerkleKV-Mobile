@@ -75,7 +75,7 @@ void main() {
 
       test('configures Last Will and Testament correctly', () {
         client = MqttClientImpl(config);
-        
+
         // Test that LWT configuration is set up properly by checking no error in creation
         expect(client, isA<MqttClientImpl>());
       });
@@ -252,10 +252,11 @@ void main() {
     group('Last Will and Testament', () {
       test('formats LWT payload correctly', () {
         client = MqttClientImpl(config);
-        
+
         // Test that LWT configuration is set up correctly
         expect(client, isA<MqttClientImpl>());
-      });      test('suppresses LWT on graceful disconnect', () async {
+      });
+      test('suppresses LWT on graceful disconnect', () async {
         client = MqttClientImpl(config);
 
         // Test graceful disconnect behavior
