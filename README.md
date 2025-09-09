@@ -481,15 +481,18 @@ CI will fail if formatting is not compliant.
 
 ## Release Workflow Guide
 
-The GitHub Actions job **"Release Management & Distribution"** is **intentionally skipped** on normal branches and pull requests.  
-It only runs when a **semantic version tag** is pushed (e.g., `v1.0.0`, `v1.1.0-beta.1`, `v2.0.0-rc.1`).
+The GitHub Actions job **"Release Management & Distribution"** is **intentionally skipped** on normal
+branches and pull requests. It only runs when a **semantic version tag** is pushed (e.g., `v1.0.0`,
+`v1.1.0-beta.1`, `v2.0.0-rc.1`).
 
 **When should I push a release tag?**
+
 - After a milestone is complete and CI is green (Static Analysis, Tests, Documentation all passing).
 - When publishing a versioned package or a public snapshot for users/contributors.
 - Not for every small change (to avoid release spam).
 
 **Tag types (SemVer):**
+
 - Stable: `vX.Y.Z` (e.g., `v1.0.0`)
 - Pre-release: `vX.Y.Z-alpha.N`, `vX.Y.Z-beta.N`
 - Release Candidate: `vX.Y.Z-rc.N`
@@ -511,6 +514,7 @@ git push origin v0.1.0
 **What happens after pushing the tag?**
 
 The Release job runs and:
+
 - Validates code quality (pre-release gates)
 - Builds source distribution & checksums
 - Generates detailed release notes
