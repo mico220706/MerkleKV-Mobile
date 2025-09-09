@@ -1,326 +1,405 @@
-import 'package:logging/logging.dart';
+import 'invalid_config_exception.dart';
 
-/// Configuration class for MerkleKV Mobile client
+/// Centralized, immutable configuration for MerkleKV Mobile client.
+///
+/// This class provides a type-safe configuration with validation, secure
+/// credential handling, and defaults aligned with Locked Spec §11.
 class MerkleKVConfig {
-  /// MQTT broker hostname or IP address
-  final String mqttBroker;
+  /// MQTT broker hostname or IP address.
+  final String mqttHost;
 
-  /// MQTT broker port (default: 1883 for non-TLS, 8883 for TLS)
+  /// MQTT broker port.
+  ///
+  /// Defaults to 8883 when TLS is enabled, 1883 otherwise.
   final int mqttPort;
 
-  /// MQTT username (optional)
-  final String? mqttUsername;
+  /// MQTT username for authentication (sensitive data).
+  final String? username;
 
-  /// MQTT password (optional)
-  final String? mqttPassword;
+  /// MQTT password for authentication (sensitive data).
+  final String? password;
 
-  /// Use TLS for MQTT connection
-  final bool useTls;
+  /// Whether to use TLS for MQTT connection.
+  final bool mqttUseTls;
 
-  /// Validate TLS certificates
-  final bool validateCertificates;
-
-  /// Client ID for MQTT connection (must be unique per device)
+  /// Unique client identifier for MQTT connection.
+  ///
+  /// Must be between 1 and 128 characters long.
   final String clientId;
 
-  /// Node ID for replication (used in change events)
+  /// Unique node identifier for replication.
+  ///
+  /// Must be between 1 and 128 characters long.
   final String nodeId;
 
-  /// Topic prefix for all MQTT topics
+  /// Topic prefix for all MQTT topics.
+  ///
+  /// Automatically normalized (no leading/trailing slashes, no spaces).
+  /// Defaults to "mkv" if empty after normalization.
   final String topicPrefix;
 
-  /// Enable persistence to disk
+  /// MQTT keep-alive interval in seconds (Locked Spec §11).
+  ///
+  /// Default: 60 seconds.
+  final int keepAliveSeconds;
+
+  /// Session expiry interval in seconds (Locked Spec §11).
+  ///
+  /// Default: 86400 seconds (24 hours).
+  final int sessionExpirySeconds;
+
+  /// Maximum allowed future timestamp skew in milliseconds (Locked Spec §11).
+  ///
+  /// Default: 300000 milliseconds (5 minutes).
+  final int skewMaxFutureMs;
+
+  /// Tombstone retention period in hours (Locked Spec §11).
+  ///
+  /// Default: 24 hours.
+  final int tombstoneRetentionHours;
+
+  /// Whether persistence to disk is enabled.
   final bool persistenceEnabled;
 
-  /// Path for persistent storage
-  final String storagePath;
+  /// Path for persistent storage.
+  ///
+  /// Required when [persistenceEnabled] is true.
+  final String? storagePath;
 
-  /// Enable replication
-  final bool replicationEnabled;
+  /// Static security warning handler for non-TLS credential usage.
+  static void Function(String message)? _onSecurityWarning;
 
-  /// Anti-entropy synchronization interval
-  final Duration antientropyInterval;
-
-  /// Request timeout duration
-  final Duration requestTimeout;
-
-  /// MQTT keep-alive interval
-  final Duration keepAliveInterval;
-
-  /// Connection timeout for MQTT
-  final Duration connectionTimeout;
-
-  /// Automatic reconnect on connection loss
-  final bool autoReconnect;
-
-  /// Maximum number of reconnection attempts
-  final int maxReconnectAttempts;
-
-  /// Reconnection delay
-  final Duration reconnectDelay;
-
-  /// Log level for the client
-  final Level logLevel;
-
-  /// Maximum message size for MQTT
-  final int maxMessageSize;
-
-  /// Quality of Service level for MQTT messages
-  final int qosLevel;
-
-  /// Retain messages on broker
-  final bool retainMessages;
-
-  /// Clean session on MQTT connect
-  final bool cleanSession;
-
-  /// Will topic for MQTT last will and testament
-  final String? willTopic;
-
-  /// Will message for MQTT last will and testament
-  final String? willMessage;
-
-  /// Will retain flag for MQTT last will and testament
-  final bool willRetain;
-
-  /// Will QoS for MQTT last will and testament
-  final int willQos;
-
-  const MerkleKVConfig({
-    required this.mqttBroker,
-    this.mqttPort = 1883,
-    this.mqttUsername,
-    this.mqttPassword,
-    this.useTls = false,
-    this.validateCertificates = true,
+  /// Private constructor for validated instances.
+  const MerkleKVConfig._({
+    required this.mqttHost,
+    required this.mqttPort,
+    required this.username,
+    required this.password,
+    required this.mqttUseTls,
     required this.clientId,
     required this.nodeId,
-    this.topicPrefix = 'merkle_kv_mobile',
-    this.persistenceEnabled = false,
-    this.storagePath = '/tmp/merkle_kv',
-    this.replicationEnabled = true,
-    this.antientropyInterval = const Duration(minutes: 5),
-    this.requestTimeout = const Duration(seconds: 30),
-    this.keepAliveInterval = const Duration(seconds: 60),
-    this.connectionTimeout = const Duration(seconds: 10),
-    this.autoReconnect = true,
-    this.maxReconnectAttempts = 5,
-    this.reconnectDelay = const Duration(seconds: 5),
-    this.logLevel = Level.INFO,
-    this.maxMessageSize = 1024 * 1024, // 1MB
-    this.qosLevel = 1, // At least once delivery
-    this.retainMessages = false,
-    this.cleanSession = true,
-    this.willTopic,
-    this.willMessage,
-    this.willRetain = false,
-    this.willQos = 0,
+    required this.topicPrefix,
+    required this.keepAliveSeconds,
+    required this.sessionExpirySeconds,
+    required this.skewMaxFutureMs,
+    required this.tombstoneRetentionHours,
+    required this.persistenceEnabled,
+    required this.storagePath,
   });
 
-  /// Create a copy of this configuration with updated values
-  MerkleKVConfig copyWith({
-    String? mqttBroker,
+  /// Creates a new MerkleKVConfig with validation and default values.
+  ///
+  /// Applies defaults from Locked Spec §11 and validates all parameters.
+  /// Throws [InvalidConfigException] if any parameter is invalid.
+  factory MerkleKVConfig({
+    required String mqttHost,
     int? mqttPort,
-    String? mqttUsername,
-    String? mqttPassword,
-    bool? useTls,
-    bool? validateCertificates,
-    String? clientId,
-    String? nodeId,
-    String? topicPrefix,
-    bool? persistenceEnabled,
+    String? username,
+    String? password,
+    bool mqttUseTls = false,
+    required String clientId,
+    required String nodeId,
+    String topicPrefix = '',
+    int keepAliveSeconds = 60,
+    int sessionExpirySeconds = 86400,
+    int skewMaxFutureMs = 300000,
+    int tombstoneRetentionHours = 24,
+    bool persistenceEnabled = false,
     String? storagePath,
-    bool? replicationEnabled,
-    Duration? antientropyInterval,
-    Duration? requestTimeout,
-    Duration? keepAliveInterval,
-    Duration? connectionTimeout,
-    bool? autoReconnect,
-    int? maxReconnectAttempts,
-    Duration? reconnectDelay,
-    Level? logLevel,
-    int? maxMessageSize,
-    int? qosLevel,
-    bool? retainMessages,
-    bool? cleanSession,
-    String? willTopic,
-    String? willMessage,
-    bool? willRetain,
-    int? willQos,
   }) {
-    return MerkleKVConfig(
-      mqttBroker: mqttBroker ?? this.mqttBroker,
-      mqttPort: mqttPort ?? this.mqttPort,
-      mqttUsername: mqttUsername ?? this.mqttUsername,
-      mqttPassword: mqttPassword ?? this.mqttPassword,
-      useTls: useTls ?? this.useTls,
-      validateCertificates: validateCertificates ?? this.validateCertificates,
-      clientId: clientId ?? this.clientId,
-      nodeId: nodeId ?? this.nodeId,
-      topicPrefix: topicPrefix ?? this.topicPrefix,
-      persistenceEnabled: persistenceEnabled ?? this.persistenceEnabled,
-      storagePath: storagePath ?? this.storagePath,
-      replicationEnabled: replicationEnabled ?? this.replicationEnabled,
-      antientropyInterval: antientropyInterval ?? this.antientropyInterval,
-      requestTimeout: requestTimeout ?? this.requestTimeout,
-      keepAliveInterval: keepAliveInterval ?? this.keepAliveInterval,
-      connectionTimeout: connectionTimeout ?? this.connectionTimeout,
-      autoReconnect: autoReconnect ?? this.autoReconnect,
-      maxReconnectAttempts: maxReconnectAttempts ?? this.maxReconnectAttempts,
-      reconnectDelay: reconnectDelay ?? this.reconnectDelay,
-      logLevel: logLevel ?? this.logLevel,
-      maxMessageSize: maxMessageSize ?? this.maxMessageSize,
-      qosLevel: qosLevel ?? this.qosLevel,
-      retainMessages: retainMessages ?? this.retainMessages,
-      cleanSession: cleanSession ?? this.cleanSession,
-      willTopic: willTopic ?? this.willTopic,
-      willMessage: willMessage ?? this.willMessage,
-      willRetain: willRetain ?? this.willRetain,
-      willQos: willQos ?? this.willQos,
+    return MerkleKVConfig._validated(
+      mqttHost: mqttHost,
+      mqttPort: mqttPort,
+      username: username,
+      password: password,
+      mqttUseTls: mqttUseTls,
+      clientId: clientId,
+      nodeId: nodeId,
+      topicPrefix: topicPrefix,
+      keepAliveSeconds: keepAliveSeconds,
+      sessionExpirySeconds: sessionExpirySeconds,
+      skewMaxFutureMs: skewMaxFutureMs,
+      tombstoneRetentionHours: tombstoneRetentionHours,
+      persistenceEnabled: persistenceEnabled,
+      storagePath: storagePath,
     );
   }
 
-  /// Get the command topic for this client
-  String get commandTopic => '$topicPrefix/$clientId/cmd';
+  /// Creates a default configuration with minimal required parameters.
+  ///
+  /// Uses secure defaults and infers appropriate port based on TLS setting.
+  static MerkleKVConfig defaultConfig({
+    required String host,
+    required String clientId,
+    required String nodeId,
+    bool tls = false,
+  }) {
+    return MerkleKVConfig(
+      mqttHost: host,
+      mqttUseTls: tls,
+      clientId: clientId,
+      nodeId: nodeId,
+    );
+  }
 
-  /// Get the response topic for this client
-  String get responseTopic => '$topicPrefix/$clientId/res';
-
-  /// Get the replication topic
-  String get replicationTopic => '$topicPrefix/replication/events';
-
-  /// Get the anti-entropy topic
-  String get antientropyTopic => '$topicPrefix/antientropy';
-
-  /// Validate the configuration
-  void validate() {
-    if (mqttBroker.isEmpty) {
-      throw ArgumentError('MQTT broker cannot be empty');
+  /// Internal factory method with validation logic.
+  factory MerkleKVConfig._validated({
+    required String mqttHost,
+    int? mqttPort,
+    String? username,
+    String? password,
+    required bool mqttUseTls,
+    required String clientId,
+    required String nodeId,
+    required String topicPrefix,
+    required int keepAliveSeconds,
+    required int sessionExpirySeconds,
+    required int skewMaxFutureMs,
+    required int tombstoneRetentionHours,
+    required bool persistenceEnabled,
+    String? storagePath,
+  }) {
+    // Validate mqttHost
+    if (mqttHost.trim().isEmpty) {
+      throw const InvalidConfigException(
+        'MQTT host cannot be empty',
+        'mqttHost',
+      );
     }
 
-    if (mqttPort <= 0 || mqttPort > 65535) {
-      throw ArgumentError('MQTT port must be between 1 and 65535');
+    // Infer port if not provided
+    final int finalPort = mqttPort ?? (mqttUseTls ? 8883 : 1883);
+
+    // Validate port
+    if (finalPort < 1 || finalPort > 65535) {
+      throw const InvalidConfigException(
+        'MQTT port must be between 1 and 65535',
+        'mqttPort',
+      );
     }
 
-    if (clientId.isEmpty) {
-      throw ArgumentError('Client ID cannot be empty');
+    // Validate clientId
+    if (clientId.isEmpty || clientId.length > 128) {
+      throw const InvalidConfigException(
+        'Client ID must be between 1 and 128 characters',
+        'clientId',
+      );
     }
 
-    if (nodeId.isEmpty) {
-      throw ArgumentError('Node ID cannot be empty');
+    // Validate nodeId
+    if (nodeId.isEmpty || nodeId.length > 128) {
+      throw const InvalidConfigException(
+        'Node ID must be between 1 and 128 characters',
+        'nodeId',
+      );
     }
 
-    if (topicPrefix.isEmpty) {
-      throw ArgumentError('Topic prefix cannot be empty');
+    // Validate timeout values
+    if (keepAliveSeconds <= 0) {
+      throw const InvalidConfigException(
+        'Keep alive seconds must be positive',
+        'keepAliveSeconds',
+      );
     }
 
-    if (requestTimeout.inMilliseconds <= 0) {
-      throw ArgumentError('Request timeout must be positive');
+    if (sessionExpirySeconds <= 0) {
+      throw const InvalidConfigException(
+        'Session expiry seconds must be positive',
+        'sessionExpirySeconds',
+      );
     }
 
-    if (keepAliveInterval.inSeconds <= 0) {
-      throw ArgumentError('Keep alive interval must be positive');
+    if (skewMaxFutureMs < 0) {
+      throw const InvalidConfigException(
+        'Skew max future milliseconds must be non-negative',
+        'skewMaxFutureMs',
+      );
     }
 
-    if (connectionTimeout.inMilliseconds <= 0) {
-      throw ArgumentError('Connection timeout must be positive');
+    if (tombstoneRetentionHours <= 0) {
+      throw const InvalidConfigException(
+        'Tombstone retention hours must be positive',
+        'tombstoneRetentionHours',
+      );
     }
 
-    if (maxReconnectAttempts < 0) {
-      throw ArgumentError('Max reconnect attempts must be non-negative');
+    // Validate persistence requirements
+    if (persistenceEnabled &&
+        (storagePath == null || storagePath.trim().isEmpty)) {
+      throw const InvalidConfigException(
+        'Storage path must be provided when persistence is enabled',
+        'storagePath',
+      );
     }
 
-    if (qosLevel < 0 || qosLevel > 2) {
-      throw ArgumentError('QoS level must be 0, 1, or 2');
+    // Normalize topic prefix
+    String normalizedPrefix = topicPrefix.trim();
+    if (normalizedPrefix.startsWith('/')) {
+      normalizedPrefix = normalizedPrefix.substring(1);
+    }
+    if (normalizedPrefix.endsWith('/')) {
+      normalizedPrefix =
+          normalizedPrefix.substring(0, normalizedPrefix.length - 1);
+    }
+    if (normalizedPrefix.contains(' ')) {
+      throw const InvalidConfigException(
+        'Topic prefix cannot contain spaces',
+        'topicPrefix',
+      );
+    }
+    if (normalizedPrefix.isEmpty) {
+      normalizedPrefix = 'mkv';
     }
 
-    if (willQos < 0 || willQos > 2) {
-      throw ArgumentError('Will QoS level must be 0, 1, or 2');
+    // Security warning for credentials without TLS
+    if (!mqttUseTls && (username != null || password != null)) {
+      _onSecurityWarning?.call(
+        'Username or password provided without TLS encryption. '
+        'Credentials will be transmitted in plain text.',
+      );
     }
 
-    if (maxMessageSize <= 0) {
-      throw ArgumentError('Max message size must be positive');
-    }
+    return MerkleKVConfig._(
+      mqttHost: mqttHost.trim(),
+      mqttPort: finalPort,
+      username: username,
+      password: password,
+      mqttUseTls: mqttUseTls,
+      clientId: clientId,
+      nodeId: nodeId,
+      topicPrefix: normalizedPrefix,
+      keepAliveSeconds: keepAliveSeconds,
+      sessionExpirySeconds: sessionExpirySeconds,
+      skewMaxFutureMs: skewMaxFutureMs,
+      tombstoneRetentionHours: tombstoneRetentionHours,
+      persistenceEnabled: persistenceEnabled,
+      storagePath: storagePath,
+    );
+  }
+
+  /// Sets the security warning handler for non-TLS credential usage.
+  ///
+  /// Pass null to disable warnings.
+  static void setSecurityWarningHandler(
+      void Function(String message)? handler) {
+    _onSecurityWarning = handler;
+  }
+
+  /// Creates a copy of this configuration with updated values.
+  ///
+  /// All parameters are optional and will use the current value if not provided.
+  /// When [mqttUseTls] is changed but [mqttPort] is not provided, the port will
+  /// be inferred based on the new TLS setting.
+  MerkleKVConfig copyWith({
+    String? mqttHost,
+    int? mqttPort,
+    String? username,
+    String? password,
+    bool? mqttUseTls,
+    String? clientId,
+    String? nodeId,
+    String? topicPrefix,
+    int? keepAliveSeconds,
+    int? sessionExpirySeconds,
+    int? skewMaxFutureMs,
+    int? tombstoneRetentionHours,
+    bool? persistenceEnabled,
+    String? storagePath,
+  }) {
+    // If TLS setting changes but port is not specified, infer the port
+    final newTlsSetting = mqttUseTls ?? this.mqttUseTls;
+    final newPort = mqttPort ??
+        (mqttUseTls != null && mqttUseTls != this.mqttUseTls
+            ? (newTlsSetting ? 8883 : 1883)
+            : this.mqttPort);
+
+    return MerkleKVConfig(
+      mqttHost: mqttHost ?? this.mqttHost,
+      mqttPort: newPort,
+      username: username ?? this.username,
+      password: password ?? this.password,
+      mqttUseTls: newTlsSetting,
+      clientId: clientId ?? this.clientId,
+      nodeId: nodeId ?? this.nodeId,
+      topicPrefix: topicPrefix ?? this.topicPrefix,
+      keepAliveSeconds: keepAliveSeconds ?? this.keepAliveSeconds,
+      sessionExpirySeconds: sessionExpirySeconds ?? this.sessionExpirySeconds,
+      skewMaxFutureMs: skewMaxFutureMs ?? this.skewMaxFutureMs,
+      tombstoneRetentionHours:
+          tombstoneRetentionHours ?? this.tombstoneRetentionHours,
+      persistenceEnabled: persistenceEnabled ?? this.persistenceEnabled,
+      storagePath: storagePath ?? this.storagePath,
+    );
+  }
+
+  /// Converts this configuration to a JSON map.
+  ///
+  /// Excludes sensitive data (username and password) for security.
+  /// Use [fromJson] with explicit credentials to reconstruct.
+  Map<String, dynamic> toJson() {
+    return {
+      'mqttHost': mqttHost,
+      'mqttPort': mqttPort,
+      'mqttUseTls': mqttUseTls,
+      'clientId': clientId,
+      'nodeId': nodeId,
+      'topicPrefix': topicPrefix,
+      'keepAliveSeconds': keepAliveSeconds,
+      'sessionExpirySeconds': sessionExpirySeconds,
+      'skewMaxFutureMs': skewMaxFutureMs,
+      'tombstoneRetentionHours': tombstoneRetentionHours,
+      'persistenceEnabled': persistenceEnabled,
+      'storagePath': storagePath,
+    };
+  }
+
+  /// Creates a MerkleKVConfig from a JSON map with optional credentials.
+  ///
+  /// Sensitive data (username/password) must be provided separately
+  /// for security and future keystore integration.
+  static MerkleKVConfig fromJson(
+    Map<String, dynamic> json, {
+    String? username,
+    String? password,
+  }) {
+    return MerkleKVConfig(
+      mqttHost: json['mqttHost'] as String,
+      mqttPort: json['mqttPort'] as int,
+      username: username,
+      password: password,
+      mqttUseTls: json['mqttUseTls'] as bool,
+      clientId: json['clientId'] as String,
+      nodeId: json['nodeId'] as String,
+      topicPrefix: json['topicPrefix'] as String? ?? '',
+      keepAliveSeconds: json['keepAliveSeconds'] as int? ?? 60,
+      sessionExpirySeconds: json['sessionExpirySeconds'] as int? ?? 86400,
+      skewMaxFutureMs: json['skewMaxFutureMs'] as int? ?? 300000,
+      tombstoneRetentionHours: json['tombstoneRetentionHours'] as int? ?? 24,
+      persistenceEnabled: json['persistenceEnabled'] as bool? ?? false,
+      storagePath: json['storagePath'] as String?,
+    );
   }
 
   @override
   String toString() {
+    final maskedUsername = username != null ? '***' : null;
+    final maskedPassword = password != null ? '***' : null;
+
     return 'MerkleKVConfig{'
-        'broker: $mqttBroker:$mqttPort, '
+        'mqttHost: $mqttHost, '
+        'mqttPort: $mqttPort, '
+        'username: $maskedUsername, '
+        'password: $maskedPassword, '
+        'mqttUseTls: $mqttUseTls, '
         'clientId: $clientId, '
         'nodeId: $nodeId, '
-        'tls: $useTls, '
-        'persistence: $persistenceEnabled, '
-        'replication: $replicationEnabled'
+        'topicPrefix: $topicPrefix, '
+        'keepAliveSeconds: $keepAliveSeconds, '
+        'sessionExpirySeconds: $sessionExpirySeconds, '
+        'skewMaxFutureMs: $skewMaxFutureMs, '
+        'tombstoneRetentionHours: $tombstoneRetentionHours, '
+        'persistenceEnabled: $persistenceEnabled, '
+        'storagePath: $storagePath'
         '}';
-  }
-
-  @override
-  bool operator ==(Object other) {
-    if (identical(this, other)) return true;
-    if (other is! MerkleKVConfig) return false;
-
-    return mqttBroker == other.mqttBroker &&
-        mqttPort == other.mqttPort &&
-        mqttUsername == other.mqttUsername &&
-        mqttPassword == other.mqttPassword &&
-        useTls == other.useTls &&
-        validateCertificates == other.validateCertificates &&
-        clientId == other.clientId &&
-        nodeId == other.nodeId &&
-        topicPrefix == other.topicPrefix &&
-        persistenceEnabled == other.persistenceEnabled &&
-        storagePath == other.storagePath &&
-        replicationEnabled == other.replicationEnabled &&
-        antientropyInterval == other.antientropyInterval &&
-        requestTimeout == other.requestTimeout &&
-        keepAliveInterval == other.keepAliveInterval &&
-        connectionTimeout == other.connectionTimeout &&
-        autoReconnect == other.autoReconnect &&
-        maxReconnectAttempts == other.maxReconnectAttempts &&
-        reconnectDelay == other.reconnectDelay &&
-        logLevel == other.logLevel &&
-        maxMessageSize == other.maxMessageSize &&
-        qosLevel == other.qosLevel &&
-        retainMessages == other.retainMessages &&
-        cleanSession == other.cleanSession &&
-        willTopic == other.willTopic &&
-        willMessage == other.willMessage &&
-        willRetain == other.willRetain &&
-        willQos == other.willQos;
-  }
-
-  @override
-  int get hashCode {
-    return Object.hashAll([
-      mqttBroker,
-      mqttPort,
-      mqttUsername,
-      mqttPassword,
-      useTls,
-      validateCertificates,
-      clientId,
-      nodeId,
-      topicPrefix,
-      persistenceEnabled,
-      storagePath,
-      replicationEnabled,
-      antientropyInterval,
-      requestTimeout,
-      keepAliveInterval,
-      connectionTimeout,
-      autoReconnect,
-      maxReconnectAttempts,
-      reconnectDelay,
-      logLevel,
-      maxMessageSize,
-      qosLevel,
-      retainMessages,
-      cleanSession,
-      willTopic,
-      willMessage,
-      willRetain,
-      willQos,
-    ]);
   }
 }

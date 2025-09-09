@@ -1,4 +1,3 @@
-import 'package:logging/logging.dart';
 import 'merkle_kv_config.dart';
 
 /// Default configuration presets for different environments
@@ -9,46 +8,36 @@ class DefaultConfig {
     String? nodeId,
   }) {
     return MerkleKVConfig(
-      mqttBroker: 'localhost',
+      mqttHost: 'localhost',
       mqttPort: 1883,
       clientId: clientId,
       nodeId: nodeId ?? clientId,
       topicPrefix: 'merkle_kv_mobile_dev',
       persistenceEnabled: false,
-      replicationEnabled: true,
-      logLevel: Level.ALL,
-      autoReconnect: true,
-      cleanSession: true,
     );
   }
 
   /// Production configuration with TLS
   static MerkleKVConfig production({
-    required String mqttBroker,
+    required String mqttHost,
     required String clientId,
     required String nodeId,
-    String? mqttUsername,
-    String? mqttPassword,
+    String? username,
+    String? password,
     int mqttPort = 8883,
     String topicPrefix = 'merkle_kv_mobile',
   }) {
     return MerkleKVConfig(
-      mqttBroker: mqttBroker,
+      mqttHost: mqttHost,
       mqttPort: mqttPort,
-      mqttUsername: mqttUsername,
-      mqttPassword: mqttPassword,
-      useTls: true,
-      validateCertificates: true,
+      username: username,
+      password: password,
+      mqttUseTls: true,
       clientId: clientId,
       nodeId: nodeId,
       topicPrefix: topicPrefix,
       persistenceEnabled: true,
-      replicationEnabled: true,
-      logLevel: Level.WARNING,
-      autoReconnect: true,
-      maxReconnectAttempts: 10,
-      reconnectDelay: const Duration(seconds: 30),
-      cleanSession: false,
+      storagePath: '/var/lib/merkle_kv',
     );
   }
 
@@ -56,21 +45,15 @@ class DefaultConfig {
   static MerkleKVConfig testing({
     required String clientId,
     String? nodeId,
-    String mqttBroker = 'test.mosquitto.org',
+    String mqttHost = 'test.mosquitto.org',
   }) {
     return MerkleKVConfig(
-      mqttBroker: mqttBroker,
+      mqttHost: mqttHost,
       mqttPort: 1883,
       clientId: clientId,
       nodeId: nodeId ?? clientId,
       topicPrefix: 'merkle_kv_mobile_test',
       persistenceEnabled: false,
-      replicationEnabled: false,
-      logLevel: Level.SEVERE,
-      autoReconnect: false,
-      requestTimeout: const Duration(seconds: 5),
-      connectionTimeout: const Duration(seconds: 5),
-      cleanSession: true,
     );
   }
 
@@ -80,84 +63,61 @@ class DefaultConfig {
     String? nodeId,
   }) {
     return MerkleKVConfig(
-      mqttBroker: 'offline',
+      mqttHost: 'offline',
       mqttPort: 1883,
       clientId: clientId,
       nodeId: nodeId ?? clientId,
       topicPrefix: 'merkle_kv_mobile_offline',
       persistenceEnabled: true,
-      replicationEnabled: false,
-      logLevel: Level.INFO,
-      autoReconnect: false,
-      requestTimeout: const Duration(seconds: 1),
-      connectionTimeout: const Duration(seconds: 1),
+      storagePath: '/tmp/merkle_kv_offline',
     );
   }
 
   /// Mobile-optimized configuration
   static MerkleKVConfig mobile({
-    required String mqttBroker,
+    required String mqttHost,
     required String clientId,
     required String nodeId,
-    String? mqttUsername,
-    String? mqttPassword,
+    String? username,
+    String? password,
     bool useTls = true,
   }) {
     return MerkleKVConfig(
-      mqttBroker: mqttBroker,
+      mqttHost: mqttHost,
       mqttPort: useTls ? 8883 : 1883,
-      mqttUsername: mqttUsername,
-      mqttPassword: mqttPassword,
-      useTls: useTls,
-      validateCertificates: true,
+      username: username,
+      password: password,
+      mqttUseTls: useTls,
       clientId: clientId,
       nodeId: nodeId,
       topicPrefix: 'merkle_kv_mobile',
       persistenceEnabled: true,
-      replicationEnabled: true,
-      logLevel: Level.INFO,
-      autoReconnect: true,
-      maxReconnectAttempts: 20,
-      reconnectDelay: const Duration(seconds: 10),
-      keepAliveInterval: const Duration(minutes: 2),
-      requestTimeout: const Duration(seconds: 15),
-      connectionTimeout: const Duration(seconds: 15),
-      cleanSession: false,
-      qosLevel: 1, // At least once delivery for mobile reliability
-      antientropyInterval: const Duration(minutes: 10),
+      storagePath: '/var/lib/merkle_kv_mobile',
+      keepAliveSeconds: 120, // 2 minutes for mobile
+      sessionExpirySeconds: 3600, // 1 hour for mobile
     );
   }
 
   /// Edge device configuration with minimal resources
   static MerkleKVConfig edge({
-    required String mqttBroker,
+    required String mqttHost,
     required String clientId,
     required String nodeId,
-    String? mqttUsername,
-    String? mqttPassword,
+    String? username,
+    String? password,
   }) {
     return MerkleKVConfig(
-      mqttBroker: mqttBroker,
+      mqttHost: mqttHost,
       mqttPort: 1883,
-      mqttUsername: mqttUsername,
-      mqttPassword: mqttPassword,
-      useTls: false, // Minimal TLS overhead
+      username: username,
+      password: password,
+      mqttUseTls: false, // Minimal TLS overhead
       clientId: clientId,
       nodeId: nodeId,
       topicPrefix: 'merkle_kv_edge',
       persistenceEnabled: false, // Minimal storage usage
-      replicationEnabled: true,
-      logLevel: Level.WARNING, // Minimal logging
-      autoReconnect: true,
-      maxReconnectAttempts: 5,
-      reconnectDelay: const Duration(seconds: 5),
-      keepAliveInterval: const Duration(minutes: 5),
-      requestTimeout: const Duration(seconds: 10),
-      connectionTimeout: const Duration(seconds: 5),
-      cleanSession: true,
-      qosLevel: 0, // Fire and forget for performance
-      maxMessageSize: 64 * 1024, // 64KB limit
-      antientropyInterval: const Duration(hours: 1),
+      keepAliveSeconds: 300, // 5 minutes for edge
+      sessionExpirySeconds: 7200, // 2 hours for edge
     );
   }
 }
