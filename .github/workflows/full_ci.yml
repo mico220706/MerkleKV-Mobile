@@ -41,47 +41,34 @@ name: Enterprise CI/CD Pipeline
 # while ensuring all critical code paths receive thorough validation.
 #
 on:
-  # Primary Development Workflow Triggers
   push:
-    branches: 
-      - main
-    # Path-based filtering implements Chen et al. (2019) findings on CI optimization
-    # Excludes non-functional changes to prevent unnecessary compute consumption
-    paths:
-      - '**.dart'
-      - 'packages/**'
-      - 'apps/**'
-      - 'docs/**'
-      - '.github/workflows/**'
-      - 'melos.yaml'
-      - 'pubspec*.yaml'
-      - 'package.json'
-      - 'pnpm-lock.yaml'
-      - '.markdownlint.json'
-      
-  pull_request:
-    branches: 
-      - main
-    paths:
-      - '**.dart'
-      - 'packages/**'
-      - 'apps/**'
-      - 'docs/**'
-      - '.github/workflows/**'
-      - 'melos.yaml'
-      - 'pubspec*.yaml'
-      - 'package.json'
-      - 'pnpm-lock.yaml'
-      - '.markdownlint.json'
-      
-  # Release Management Triggers
-  push:
+    branches: [ main ]
     tags:
-      # Semantic versioning compliance (semver.org)
-      # Supports: v1.0.0, v2.1.3-alpha.1, v1.0.0-beta.2, v3.0.0-rc.1
       - 'v[0-9]+.[0-9]+.[0-9]+*'
-      
-  # Emergency Override Capability
+    paths:
+      - '**.dart'
+      - 'packages/**'
+      - 'apps/**'
+      - 'docs/**'
+      - '.github/workflows/**'
+      - 'melos.yaml'
+      - 'pubspec*.yaml'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - '.markdownlint.json'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - '**.dart'
+      - 'packages/**'
+      - 'apps/**'
+      - 'docs/**'
+      - '.github/workflows/**'
+      - 'melos.yaml'
+      - 'pubspec*.yaml'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - '.markdownlint.json'
   workflow_dispatch:
     inputs:
       skip_tests:
@@ -206,7 +193,7 @@ jobs:
       # stale dependency issues.
       #
       - name: 💾 Cache Dart Packages
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |
             ${{ env.PUB_CACHE }}
@@ -319,13 +306,6 @@ jobs:
         ports:
           - 1883:1883
           - 9001:9001
-        # Health check ensures service readiness before test execution
-        options: >-
-          --health-cmd "mosquitto_sub -h localhost -t '$$SYS/broker/uptime' -C 1 || exit 1"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-          --name mosquitto-test
         
     steps:
       - name: 📚 Checkout Repository
@@ -342,7 +322,7 @@ jobs:
           cache: true
           
       - name: 💾 Restore Dart Package Cache
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |
             ${{ env.PUB_CACHE }}
@@ -480,7 +460,7 @@ jobs:
           
       - name: 📤 Upload Test Artifacts
         if: always()
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: test-reports-${{ matrix.tier }}
           path: test-reports/${{ matrix.tier }}
@@ -836,7 +816,6 @@ jobs:
               --exclude='.dart_tool' \
               --exclude='build' \
               --exclude='release-artifacts' \
-              --exclude='.github/workflows/*.yml' \
               --exclude='**/.DS_Store' \
               --exclude='**/Thumbs.db' \
               -czf "merkle-kv-mobile-${{ env.TAG_NAME }}-source.tar.gz" \
@@ -960,7 +939,7 @@ jobs:
       # artifacts, establishing the canonical distribution point for the release
       #
       - name: 🚀 Create GitHub Release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ env.TAG_NAME }}
           name: "MerkleKV Mobile ${{ env.TAG_NAME }}"
@@ -973,7 +952,7 @@ jobs:
           draft: false
           prerelease: ${{ env.IS_PRERELEASE }}
           generate_release_notes: true
-          make_latest: ${{ env.IS_PRERELEASE == 'false' }}
+          make_latest: ${{ env.IS_PRERELEASE != 'true' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           
