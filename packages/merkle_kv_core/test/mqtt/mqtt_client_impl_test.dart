@@ -104,7 +104,7 @@ void main() {
         // Simulate disconnect to trigger state emission
         await client.disconnect();
 
-        await Future.delayed(Duration(milliseconds: 10));
+        await Future.delayed(const Duration(milliseconds: 10));
 
         // Verify we get at least the disconnecting state
         expect(states, isNotEmpty);
@@ -228,7 +228,7 @@ void main() {
       test('manages subscription handlers correctly', () async {
         client = MqttClientImpl(config);
 
-        var receivedMessages = <String, String>{};
+        final receivedMessages = <String, String>{};
 
         await client.subscribe('test/topic', (topic, payload) {
           receivedMessages[topic] = payload;
