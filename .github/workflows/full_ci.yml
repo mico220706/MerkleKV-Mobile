@@ -126,8 +126,6 @@ permissions:
 # different execution environments.
 #
 env:
-  # Flutter stable channel provides optimal balance of features and stability
-  FLUTTER_VERSION: 'stable'
   # Node.js LTS ensures maximum compatibility with documentation toolchain
   NODE_VERSION: '18'
   # Dart package caching configuration for optimal performance
@@ -179,7 +177,7 @@ jobs:
       - name: 🎯 Setup Flutter SDK (Stable Channel)
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: ${{ env.FLUTTER_VERSION }}
+          flutter-version: '3.19.6'
           channel: 'stable'
           cache: true  # Built-in caching for SDK artifacts
           
@@ -317,7 +315,7 @@ jobs:
       - name: 🎯 Setup Flutter SDK
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: ${{ env.FLUTTER_VERSION }}
+          flutter-version: '3.19.6'
           channel: 'stable'
           cache: true
           
@@ -711,7 +709,7 @@ jobs:
       - name: 🎯 Setup Flutter SDK for Release
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: ${{ env.FLUTTER_VERSION }}
+          flutter-version: '3.19.6'
           channel: 'stable'
           cache: true
           
