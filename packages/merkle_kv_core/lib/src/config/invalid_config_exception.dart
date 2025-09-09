@@ -1,5 +1,5 @@
 /// Exception thrown when a MerkleKVConfig has invalid parameters.
-/// 
+///
 /// This exception implements [FormatException] to align with Dart's standard
 /// exception hierarchy for configuration and parsing errors.
 class InvalidConfigException implements FormatException {

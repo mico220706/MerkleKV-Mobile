@@ -673,13 +673,16 @@ void main() {
   group('InvalidConfigException', () {
     test('formats message correctly with parameter', () {
       const exception = InvalidConfigException('Value is invalid', 'testParam');
-      expect(exception.toString(), 
-          equals('InvalidConfigException: Value is invalid (parameter: testParam)'));
+      expect(
+          exception.toString(),
+          equals(
+              'InvalidConfigException: Value is invalid (parameter: testParam)'));
     });
 
     test('formats message correctly without parameter', () {
       const exception = InvalidConfigException('General error');
-      expect(exception.toString(), equals('InvalidConfigException: General error'));
+      expect(exception.toString(),
+          equals('InvalidConfigException: General error'));
     });
 
     test('implements FormatException interface', () {
