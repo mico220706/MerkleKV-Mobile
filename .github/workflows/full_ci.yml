@@ -226,9 +226,14 @@ jobs:
       - name: 🎨 Validate Code Formatting Consistency
         run: |
           echo "Enforcing Dart code formatting standards..."
-          flutter format --set-exit-if-changed . || {
+          FILES=$(git ls-files '*.dart')
+          if [ -z "$FILES" ]; then
+            echo "No Dart files to check."
+            exit 0
+          fi
+          dart format --output=none --set-exit-if-changed $FILES || {
             echo "❌ Code formatting violations detected"
-            echo "Run 'flutter format .' to fix formatting issues"
+            echo "Run 'dart format .' to fix formatting issues"
             exit 1
           }
           echo "✅ All Dart files conform to formatting standards"
