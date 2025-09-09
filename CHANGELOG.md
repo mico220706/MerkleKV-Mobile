@@ -10,6 +10,9 @@ Specification v1.0 compliance.
 
 ### Added
 
+- **MerkleKVConfig** (Locked Spec §11): Immutable config, defaults, validation, secure JSON (secrets excluded), `copyWith`, `defaultConfig`.
+- **MQTT Client Layer** (Locked Spec §6): Connection lifecycle, exponential backoff with jitter (±20%), Clean Start=false, Session Expiry=24h, LWT, QoS=1 & retain=false, TLS enforcement with credentials.
+- **Tests**: 28 tests for config, 21 tests for MQTT client; statistical jitter validation; subscription and publish enforcement.
 - Initial repository structure and development setup
 - Comprehensive automation scripts for GitHub issue management
 - Project board automation with milestone-based organization
@@ -17,7 +20,12 @@ Specification v1.0 compliance.
 
 ### Changed
 
+- Public exports updated in `merkle_kv_core.dart` to include config and MQTT client APIs.
 - Established Locked Specification v1.0 constraints for all development
+
+### Security
+
+- Secrets never logged or serialized; TLS validation required with credentials.
 
 ### Deprecated
 

@@ -172,6 +172,21 @@ Production-ready message broker with security features:
 - **TLS Encryption**: Secure communication between clients and broker
 - **Persistence**: Message persistence and replay capabilities
 
+### Transport Layer: MQTT (Locked Spec §6)
+
+- **Sessions:** Clean Start=false; Session Expiry=86400s (24h) for recovery of missed messages.
+- **Keep Alive:** 60s.
+- **QoS/Retain:** All app messages are QoS=1, retain=false; broker QoS downgrades are logged.
+- **Reconnect:** Exponential backoff 1s→32s with ±20% jitter; bounded publish queue flushes after reconnection.
+- **LWT:** `{topicPrefix}/{clientId}/res`, payload `{"status":"offline","timestamp_ms":...}`, QoS=1, retain=false; suppressed on graceful disconnect.
+- **TLS:** Enforced when credentials are present; hostname/SAN validation is required.
+
+### Configuration Source of Truth (Locked Spec §11)
+
+- `MerkleKVConfig` governs all MQTT/session parameters and storage toggles.
+- Defaults: `keepAlive=60`, `sessionExpiry=86400`, `skewMaxFutureMs=300000`, `tombstoneRetentionHours=24`.
+- Validation prevents invalid ports/timeouts and enforces storage path when persistence is enabled.
+
 ## 📡 Communication Patterns
 
 ### Topic Structure
