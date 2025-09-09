@@ -8,15 +8,13 @@ class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
+  Widget build(BuildContext context) => MaterialApp(
       title: 'MerkleKV Demo',
       theme: ThemeData(
         primarySwatch: Colors.blue,
       ),
       home: const MyHomePage(title: 'MerkleKV Mobile Demo'),
     );
-  }
 }
 
 class MyHomePage extends StatefulWidget {
@@ -30,8 +28,7 @@ class MyHomePage extends StatefulWidget {
 
 class _MyHomePageState extends State<MyHomePage> {
   @override
-  Widget build(BuildContext context) {
-    return Scaffold(
+  Widget build(BuildContext context) => Scaffold(
       appBar: AppBar(
         title: Text(widget.title),
       ),
@@ -50,5 +47,4 @@ class _MyHomePageState extends State<MyHomePage> {
         ),
       ),
     );
-  }
 }
