@@ -13,6 +13,8 @@ export 'src/config/default_config.dart';
 export 'src/mqtt/connection_state.dart';
 export 'src/mqtt/mqtt_client_interface.dart';
 export 'src/mqtt/mqtt_client_impl.dart';
+export 'src/mqtt/topic_scheme.dart';
+export 'src/mqtt/topic_router.dart';
 
 // Core exports will be added in future phases
 // export 'src/merkle_kv_mobile.dart';
