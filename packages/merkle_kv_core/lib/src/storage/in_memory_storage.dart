@@ -173,25 +173,20 @@ class InMemoryStorage implements StorageInterface {
 
   /// Initializes persistence file path and directory.
   Future<void> _initializePersistence() async {
-    String storageDirectory;
-
-    if (_config.storagePath != null) {
-      // Use provided path
-      final file = File(_config.storagePath!);
-      storageDirectory = file.parent.path;
-      _persistenceFile = file;
-    } else {
-      // Create temp directory with default filename
-      final tempDir = Directory.systemTemp.createTempSync('merkle_kv_');
-      storageDirectory = tempDir.path;
-      _persistenceFile = File(
-          '${tempDir.path}${Platform.pathSeparator}merkle_kv_storage.jsonl');
+    if (_config.storagePath == null) {
+      throw StateError(
+          'Storage path must be provided when persistence is enabled');
     }
 
-    // Ensure directory exists
-    final directory = Directory(storageDirectory);
-    if (!await directory.exists()) {
-      await directory.create(recursive: true);
+    _persistenceFile = File(_config.storagePath!);
+    await _ensureParentDir(_persistenceFile!);
+  }
+
+  /// Ensures the parent directory of a file exists.
+  Future<void> _ensureParentDir(File file) async {
+    final dir = file.parent;
+    if (!await dir.exists()) {
+      await dir.create(recursive: true);
     }
   }
 
@@ -291,8 +286,11 @@ class InMemoryStorage implements StorageInterface {
   Future<void> _rewritePersistenceFile() async {
     if (_persistenceFile == null) return;
 
-    // Write to temporary file first
-    final tempFile = File('${_persistenceFile!.path}.tmp');
+    final target = _persistenceFile!;
+    await _ensureParentDir(target);
+
+    // Write to temporary file in the same directory
+    final tempFile = File('${target.path}.tmp');
 
     for (final entry in _entries.values) {
       final record = _createPersistedRecord(entry);
@@ -300,6 +298,6 @@ class InMemoryStorage implements StorageInterface {
     }
 
     // Atomically replace the original file
-    await tempFile.rename(_persistenceFile!.path);
+    await tempFile.rename(target.path);
   }
 }
