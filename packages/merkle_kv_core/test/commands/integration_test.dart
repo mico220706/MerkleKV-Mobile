@@ -1,4 +1,4 @@
-import 'dart:convert';
+// ignore_for_file: prefer_const_constructors
 import 'package:test/test.dart';
 
 // Simple test to verify core functionality without Flutter dependencies
