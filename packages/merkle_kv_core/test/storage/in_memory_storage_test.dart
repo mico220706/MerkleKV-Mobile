@@ -526,7 +526,6 @@ void main() {
         // Manually create persistence file with entries that conflict
         final storageDir = Directory('./storage');
         await storageDir.create(recursive: true);
-        final persistenceFile = File('./storage/merkle_kv_storage.jsonl');
 
         final olderEntry = StorageEntry.value(
           key: 'conflict-key',

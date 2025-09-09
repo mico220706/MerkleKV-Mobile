@@ -142,6 +142,44 @@ class MerkleKVConfig {
     );
   }
 
+  /// Convenience factory method that forwards to the main constructor.
+  ///
+  /// This method provides a static factory interface for test compatibility
+  /// while maintaining all the validation and defaults of the main constructor.
+  static MerkleKVConfig create({
+    required String mqttHost,
+    int? mqttPort,
+    String? username,
+    String? password,
+    bool mqttUseTls = false,
+    required String clientId,
+    required String nodeId,
+    String topicPrefix = '',
+    int keepAliveSeconds = 60,
+    int sessionExpirySeconds = 86400,
+    int skewMaxFutureMs = 300000,
+    int tombstoneRetentionHours = 24,
+    bool persistenceEnabled = false,
+    String? storagePath,
+  }) {
+    return MerkleKVConfig(
+      mqttHost: mqttHost,
+      mqttPort: mqttPort,
+      username: username,
+      password: password,
+      mqttUseTls: mqttUseTls,
+      clientId: clientId,
+      nodeId: nodeId,
+      topicPrefix: topicPrefix,
+      keepAliveSeconds: keepAliveSeconds,
+      sessionExpirySeconds: sessionExpirySeconds,
+      skewMaxFutureMs: skewMaxFutureMs,
+      tombstoneRetentionHours: tombstoneRetentionHours,
+      persistenceEnabled: persistenceEnabled,
+      storagePath: storagePath,
+    );
+  }
+
   /// Internal factory method with validation logic.
   factory MerkleKVConfig._validated({
     required String mqttHost,
