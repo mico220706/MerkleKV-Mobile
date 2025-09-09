@@ -9,8 +9,9 @@ The MerkleKV Mobile team takes security seriously. We appreciate your efforts to
 **Do NOT create public GitHub issues for security vulnerabilities.**
 
 Instead, please report security vulnerabilities by emailing:
-- **Primary Contact**: security@ai-decenter.org
-- **Backup Contact**: merkle-kv-security@ai-decenter.org
+
+- **Primary Contact**: [security@ai-decenter.org](mailto:security@ai-decenter.org)
+- **Backup Contact**: [merkle-kv-security@ai-decenter.org](mailto:merkle-kv-security@ai-decenter.org)
 
 ### What to Include
 
@@ -45,6 +46,7 @@ We follow responsible disclosure practices:
 ### In Scope
 
 **MerkleKV Mobile Core**:
+
 - MQTT transport security vulnerabilities
 - Authentication and authorization bypasses
 - Data integrity and consistency issues
@@ -55,12 +57,14 @@ We follow responsible disclosure practices:
 - Information disclosure issues
 
 **Mobile Platform Integration**:
+
 - React Native bridge security issues
 - iOS/Android platform-specific vulnerabilities
 - Storage security on mobile devices
 - Inter-process communication security
 
 **Replication System**:
+
 - Merkle tree manipulation vulnerabilities
 - Vector clock manipulation attacks
 - Consensus algorithm exploitation
@@ -69,6 +73,7 @@ We follow responsible disclosure practices:
 ### Out of Scope
 
 **Infrastructure & Deployment**:
+
 - Vulnerabilities in third-party MQTT brokers
 - Infrastructure misconfigurations
 - Network security beyond TLS
@@ -76,12 +81,14 @@ We follow responsible disclosure practices:
 - Hardware security issues
 
 **Development Tools**:
+
 - Vulnerabilities in development dependencies
 - Build system security issues (unless affecting production)
 - IDE security issues
 - Testing framework vulnerabilities
 
 **Denial of Service**:
+
 - Rate limiting bypasses (handled at broker level)
 - Resource exhaustion through legitimate usage
 - Network flooding attacks
@@ -91,6 +98,7 @@ We follow responsible disclosure practices:
 ### For Users
 
 **MQTT Broker Security**:
+
 - Always use TLS 1.2 or higher for MQTT connections
 - Implement proper authentication (username/password or certificates)
 - Configure ACLs to restrict topic access by client ID
@@ -98,6 +106,7 @@ We follow responsible disclosure practices:
 - Regular broker security updates
 
 **Client Configuration**:
+
 ```javascript
 const config = {
   // Always use secure connections
@@ -122,7 +131,8 @@ const config = {
 ```
 
 **Access Control Lists (ACLs)**:
-```
+
+```text
 # Example Mosquitto ACL configuration
 # Allow client to publish commands to their topic
 user client123
@@ -138,6 +148,7 @@ topic readwrite merkle/replication/events
 ```
 
 **Mobile Security**:
+
 - Store credentials securely using Keychain (iOS) or Keystore (Android)
 - Enable app transport security (ATS) on iOS
 - Use certificate pinning for critical connections
@@ -147,6 +158,7 @@ topic readwrite merkle/replication/events
 ### For Developers
 
 **Input Validation**:
+
 ```typescript
 // Validate key size (Locked Spec: ≤256 bytes)
 function validateKey(key: string): boolean {
@@ -168,6 +180,7 @@ function validateValue(value: any): boolean {
 ```
 
 **Secure Message Handling**:
+
 ```typescript
 // Always validate message structure
 function validateMQTTMessage(topic: string, payload: Buffer): boolean {
@@ -187,6 +200,7 @@ function validateMQTTMessage(topic: string, payload: Buffer): boolean {
 ```
 
 **Timeout Handling**:
+
 ```typescript
 // Implement proper timeout handling (Locked Spec timeouts)
 const TIMEOUTS = {
@@ -213,6 +227,7 @@ async function executeWithTimeout<T>(
 ### MQTT-Specific Issues
 
 **Topic Injection**:
+
 ```typescript
 // ❌ VULNERABLE: Direct topic construction
 const topic = `merkle/${userInput}/cmd`;
@@ -228,6 +243,7 @@ function buildTopic(clientId: string, suffix: 'cmd' | 'res'): string {
 ```
 
 **ACL Bypasses**:
+
 ```typescript
 // ❌ VULNERABLE: No access control validation
 function publishCommand(topic: string, payload: any) {
@@ -246,6 +262,7 @@ function publishCommand(clientId: string, topic: string, payload: any) {
 ### Data Integrity Issues
 
 **Vector Clock Manipulation**:
+
 ```typescript
 // ❌ VULNERABLE: Accept any vector clock
 function mergeVectorClock(remote: VectorClock) {
@@ -264,6 +281,7 @@ function mergeVectorClock(remote: VectorClock) {
 ### Mobile Platform Issues
 
 **Insecure Storage**:
+
 ```typescript
 // ❌ VULNERABLE: Plain text storage
 localStorage.setItem('mqtt_password', password);
@@ -280,8 +298,8 @@ await Keychain.setInternetCredentials(
 
 ## 📞 Contact Information
 
-- **Security Team**: security@ai-decenter.org
-- **General Inquiries**: contact@ai-decenter.org
+- **Security Team**: [security@ai-decenter.org](mailto:security@ai-decenter.org)
+- **General Inquiries**: [contact@ai-decenter.org](mailto:contact@ai-decenter.org)
 - **Documentation**: [Security Guidelines](https://docs.ai-decenter.org/merkle-kv/security)
 
 ## 🏆 Security Hall of Fame

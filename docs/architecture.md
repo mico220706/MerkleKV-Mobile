@@ -1,10 +1,13 @@
 # MerkleKV Mobile Architecture
 
-This document provides a comprehensive overview of the MerkleKV Mobile system architecture, including component interactions, data flow, and design decisions.
+This document provides a comprehensive overview of the MerkleKV Mobile system architecture, including
+component interactions, data flow, and design decisions.
 
 ## 🏗️ System Overview
 
-MerkleKV Mobile is a distributed key-value store designed specifically for mobile and edge environments. The system consists of several key components working together to provide reliable, efficient data storage and synchronization across multiple devices.
+MerkleKV Mobile is a distributed key-value store designed specifically for mobile and edge
+environments. The system consists of several key components working together to provide reliable,
+efficient data storage and synchronization across multiple devices.
 
 ### Core Principles
 
@@ -15,7 +18,7 @@ MerkleKV Mobile is a distributed key-value store designed specifically for mobil
 
 ## 📊 Architecture Diagram
 
-```
+```text
 ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
 │   Flutter App   │    │ React Native    │    │   CLI Tool      │
 │                 │    │      App        │    │                 │
@@ -173,7 +176,7 @@ Production-ready message broker with security features:
 
 ### Topic Structure
 
-```
+```text
 merkle_kv_mobile/
 ├── {client_id}/
 │   ├── cmd                    # Client command topic
@@ -188,6 +191,7 @@ merkle_kv_mobile/
 ### Message Formats
 
 #### Command Message
+
 ```json
 {
   "id": "req-uuid-1234",
@@ -199,6 +203,7 @@ merkle_kv_mobile/
 ```
 
 #### Response Message
+
 ```json
 {
   "id": "req-uuid-1234",
@@ -209,6 +214,7 @@ merkle_kv_mobile/
 ```
 
 #### Replication Event
+
 ```cbor
 {
   "op": "SET",
@@ -224,18 +230,21 @@ merkle_kv_mobile/
 ## 🗄️ Storage Architecture
 
 ### Memory Storage
+
 - **HashMap-based**: Fast in-memory key-value store
 - **Thread-safe**: Concurrent access protection
 - **TTL Support**: Optional time-to-live for keys
 - **Size Limits**: Configurable memory usage limits
 
 ### Persistent Storage
+
 - **File-based**: Platform-specific file storage
 - **Journaling**: Write-ahead log for crash recovery
 - **Compaction**: Periodic cleanup of old entries
 - **Encryption**: Optional at-rest encryption
 
 ### Hybrid Approach
+
 - **Write-through Cache**: Memory + persistence
 - **Lazy Loading**: Load data on demand
 - **Background Sync**: Asynchronous persistence
@@ -243,16 +252,19 @@ merkle_kv_mobile/
 ## 🔒 Security Model
 
 ### Authentication Layers
+
 1. **MQTT Level**: Username/password or certificate-based
 2. **Application Level**: API keys or tokens
 3. **Data Level**: Optional value encryption
 
 ### Authorization Model
+
 - **Topic-based ACL**: Control access to specific topics
 - **Client ID patterns**: Restrict topic access by client ID
 - **Role-based Access**: Different permissions for different user types
 
 ### Data Protection
+
 - **TLS in Transit**: All MQTT communication encrypted
 - **At-rest Encryption**: Optional local data encryption
 - **Message Integrity**: Checksums for replication events
@@ -260,16 +272,19 @@ merkle_kv_mobile/
 ## 📈 Performance Characteristics
 
 ### Scalability
+
 - **Horizontal**: Add more devices without central bottleneck
 - **Vertical**: Efficient memory and CPU usage per device
 - **Network**: Minimal bandwidth usage with compression
 
 ### Latency
+
 - **Local Operations**: Sub-millisecond for memory operations
 - **Remote Operations**: Network latency + broker processing
 - **Replication**: Asynchronous, non-blocking
 
 ### Throughput
+
 - **Read Operations**: Limited by storage backend
 - **Write Operations**: Limited by replication overhead
 - **Batch Operations**: Optimized for bulk operations
@@ -277,12 +292,14 @@ merkle_kv_mobile/
 ## 🔧 Configuration Management
 
 ### Environment-Specific Configs
+
 - **Development**: Local broker, verbose logging
 - **Testing**: In-memory storage, mock networking
 - **Production**: TLS, persistent storage, minimal logging
 - **Edge**: Resource-constrained optimizations
 
 ### Runtime Configuration
+
 - **Dynamic Reconfiguration**: Update settings without restart
 - **Configuration Validation**: Compile-time and runtime checks
 - **Default Fallbacks**: Sensible defaults for all settings
@@ -290,16 +307,19 @@ merkle_kv_mobile/
 ## 🚀 Deployment Strategies
 
 ### Mobile Applications
+
 - **App Store Distribution**: Standard mobile app deployment
 - **Over-the-Air Updates**: Update logic without app store
 - **Progressive Rollout**: Gradual feature deployment
 
 ### Edge Devices
+
 - **Container Deployment**: Docker/Podman containers
 - **Package Management**: OS-specific packages
 - **Remote Management**: Configuration and update management
 
 ### Cloud Integration
+
 - **Managed MQTT**: Cloud MQTT brokers (AWS IoT, Azure IoT)
 - **Hybrid Cloud**: On-premises + cloud brokers
 - **Edge Computing**: Edge-hosted broker instances
@@ -307,18 +327,22 @@ merkle_kv_mobile/
 ## 🔍 Monitoring and Observability
 
 ### Metrics Collection
+
 - **Application Metrics**: Operation counts, latencies, errors
 - **System Metrics**: Memory, CPU, network usage
 - **Business Metrics**: Data growth, user engagement
 
 ### Logging Strategy
+
 - **Structured Logging**: JSON-formatted log entries
 - **Log Levels**: Configurable verbosity levels
 - **Log Aggregation**: Centralized log collection
 
 ### Health Checks
+
 - **Connectivity**: MQTT broker connection status
 - **Storage**: Storage backend health
 - **Replication**: Synchronization lag monitoring
 
-This architecture provides a solid foundation for building scalable, reliable, and secure distributed applications using MerkleKV Mobile.
+This architecture provides a solid foundation for building scalable, reliable, and secure
+distributed applications using MerkleKV Mobile.

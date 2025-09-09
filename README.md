@@ -21,9 +21,13 @@ A distributed key-value store optimized for mobile edge devices with MQTT-based 
 
 ## 📱 Overview
 
-MerkleKV Mobile is a lightweight, distributed key-value store designed specifically for mobile edge devices. Unlike the original MerkleKV that uses a TCP server for client-server communication, MerkleKV Mobile uses MQTT for all communications, making it ideal for mobile environments where opening TCP ports is not feasible.
+MerkleKV Mobile is a lightweight, distributed key-value store designed specifically for mobile edge
+devices. Unlike the original MerkleKV that uses a TCP server for client-server communication,
+MerkleKV Mobile uses MQTT for all communications, making it ideal for mobile environments where
+opening TCP ports is not feasible.
 
 The system provides:
+
 - In-memory key-value storage
 - Real-time data synchronization between devices
 - MQTT-based request-response communication pattern
@@ -37,24 +41,28 @@ The system provides:
 MerkleKV Mobile uses a pure MQTT communication model:
 
 1. **Command Channel**: Each device subscribes to its own command topic based on its client ID:
-   ```
+
+   ```text
    merkle_kv_mobile/{client_id}/cmd
    ```
 
 2. **Response Channel**: Responses are published to a client-specific response topic:
-   ```
+
+   ```text
    merkle_kv_mobile/{client_id}/res
    ```
 
 3. **Replication Channel**: Data changes are published to a shared replication topic:
-   ```
+
+   ```text
    merkle_kv_mobile/replication/events
    ```
 
 ### Data Flow
 
 #### Command Execution Flow
-```
+
+```text
 Mobile App                  MerkleKV Mobile Library               MQTT Broker
     |                               |                                  |
     |-- Command (SET user:1 value) ->|                                  |
@@ -70,7 +78,8 @@ Mobile App                  MerkleKV Mobile Library               MQTT Broker
 ```
 
 #### Replication Flow
-```
+
+```text
 Device 1                     MQTT Broker                    Device 2
    |                             |                             |
    |-- SET operation ----------->|                             |
@@ -117,21 +126,26 @@ Responses are published as JSON objects to the response topic:
 ### Supported Operations
 
 #### Basic Operations
+
 - `GET`: Retrieve a value by key
 - `SET`: Store a key-value pair
 - `DEL`: Delete a key and its value
 
 #### Numeric Operations
+
 - `INCR`: Increment a numeric value (with optional amount)
 - `DECR`: Decrement a numeric value (with optional amount)
 
 #### String Operations
+
 - `APPEND`: Append a value to an existing string
 - `PREPEND`: Prepend a value to an existing string
 
 #### Bulk Operations
-- `MGET`: Get multiple keys in one request
-- `MSET`: Set multiple key-value pairs in one request
+
+- `MGET`: Get multiple keys in a single operation
+- `MSET`: Set multiple key-value pairs in a single operation
+- `KEYS`: List all keys matching a pattern (for debugging)
 
 ## 🔄 Replication System
 
@@ -139,7 +153,7 @@ Responses are published as JSON objects to the response topic:
 
 Change events are serialized using CBOR for efficiency and published to the replication topic:
 
-```
+```cbor
 {
   "op": "SET",              // Operation type
   "key": "user:123",        // Key modified
@@ -168,7 +182,7 @@ Change events are serialized using CBOR for efficiency and published to the repl
 
 ### Message Processing Pipeline
 
-```
+```text
 MQTT Message → JSON Parsing → Command Validation → Command Execution → 
 Response Generation → Response Publishing → (Optional) Replication
 ```
@@ -316,12 +330,14 @@ void main() async {
 The MerkleKV Mobile project structure has been created and includes:
 
 ✅ **Complete Monorepo Structure**
+
 - Core Dart package with essential interfaces
 - Flutter demo application template
 - MQTT broker with security configuration
 - Comprehensive documentation and CI/CD pipelines
 
 ✅ **Production-Ready MQTT Broker**
+
 - TLS encryption support
 - User authentication and ACL
 - Docker containerization
@@ -337,6 +353,7 @@ The MerkleKV Mobile project structure has been created and includes:
 ### Development Setup
 
 1. **Clone and Bootstrap the Project**:
+
    ```bash
    git clone https://github.com/mico220706/MerkleKV-Mobile.git
    cd MerkleKV-Mobile
@@ -349,6 +366,7 @@ The MerkleKV Mobile project structure has been created and includes:
    ```
 
 2. **Start the MQTT Broker**:
+
    ```bash
    # Navigate to broker directory
    cd broker/mosquitto
@@ -361,6 +379,7 @@ The MerkleKV Mobile project structure has been created and includes:
    ```
 
 3. **Run the Flutter Demo**:
+
    ```bash
    cd apps/flutter_demo
    flutter run
@@ -369,6 +388,7 @@ The MerkleKV Mobile project structure has been created and includes:
 ### Quick Usage Example
 
 1. **Add the package to your pubspec.yaml**:
+
    ```yaml
    dependencies:
      merkle_kv_core:
@@ -376,6 +396,7 @@ The MerkleKV Mobile project structure has been created and includes:
    ```
 
 2. **Import and use the package**:
+
    ```dart
    import 'package:merkle_kv_core/merkle_kv_core.dart';
    
@@ -405,7 +426,7 @@ The MerkleKV Mobile project structure has been created and includes:
 
 ### Project Structure
 
-```
+```text
 MerkleKV-Mobile/
 ├── packages/
 │   └── merkle_kv_core/          # Core Dart implementation
@@ -491,4 +512,4 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ---
 
-**Made with ❤️ for mobile distributed systems**
+## Made with ❤️ for mobile distributed systems

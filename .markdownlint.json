@@ -9,7 +9,11 @@
   "MD013": {
     "line_length": 120,
     "code_blocks": false,
-    "tables": false
+    "tables": false,
+    "headings": false,
+    "heading_line_length": 0,
+    "strict": false,
+    "ignore_urls": true
   },
   "MD024": {
     "siblings_only": true

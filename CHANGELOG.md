@@ -3,34 +3,42 @@
 All notable changes to MerkleKV Mobile will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) with strict Locked Specification v1.0 compliance.
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) with strict Locked
+Specification v1.0 compliance.
 
 ## [Unreleased]
 
 ### Added
+
 - Initial repository structure and development setup
 - Comprehensive automation scripts for GitHub issue management
 - Project board automation with milestone-based organization
 - Complete repository hygiene and process documentation
 
 ### Changed
+
 - Established Locked Specification v1.0 constraints for all development
 
 ### Deprecated
+
 - None
 
 ### Removed
+
 - None
 
 ### Fixed
+
 - None
 
 ### Security
+
 - Established security policy and vulnerability disclosure process
 - Implemented secure MQTT connection requirements (TLS ≥1.2)
 - Defined ACL and access control best practices
 
 ### 🔒 Locked Spec v1.0 Compliance
+
 - ✅ MQTT-only transport established (QoS=1, retain=false)
 - ✅ Topic structure defined: `{prefix}/{client_id}/cmd|res`
 - ✅ Size limits established: key ≤256B, value ≤256KiB, command ≤512KiB

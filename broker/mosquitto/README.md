@@ -20,7 +20,7 @@ docker-compose logs -f mosquitto
 
 ## 📁 Directory Structure
 
-```
+```text
 mosquitto/
 ├── config/
 │   ├── mosquitto.conf      # Main broker configuration
@@ -99,6 +99,7 @@ mosquitto_sub -h localhost -p 1883 -u test_user -P test_pass -t test/topic
 ### Common Issues
 
 1. **Permission Denied**
+
    ```bash
    # Fix file permissions
    chmod 600 config/passwd
@@ -106,6 +107,7 @@ mosquitto_sub -h localhost -p 1883 -u test_user -P test_pass -t test/topic
    ```
 
 2. **Certificate Errors**
+
    ```bash
    # Regenerate certificates
    rm -rf config/tls/
@@ -113,9 +115,11 @@ mosquitto_sub -h localhost -p 1883 -u test_user -P test_pass -t test/topic
    ```
 
 3. **Connection Refused**
+
    ```bash
    # Check if broker is running
    docker-compose ps
+   ```
    
    # Check logs for errors
    docker-compose logs mosquitto
@@ -142,8 +146,10 @@ docker-compose restart mosquitto
 For production use:
 
 1. **Change Default Passwords**
+
    ```bash
    ./scripts/create_users.sh
+   ```
    # Choose option 1 and set strong passwords
    ```
 
@@ -156,7 +162,11 @@ For production use:
    - Use VPN or private networks when possible
 
 4. **Enable Monitoring**
+
    ```bash
+   # Check broker logs
+   docker-compose logs -f mosquitto
+   ```
    # Start with monitoring stack
    docker-compose --profile monitoring up -d
    ```
