@@ -39,6 +39,7 @@ The system provides:
 - **MerkleKVConfig** (Locked Spec §11): Centralized, immutable configuration with strict validation, secure credential handling, JSON (sans secrets), `copyWith`, and defaults:
   - `keepAliveSeconds=60`, `sessionExpirySeconds=86400`, `skewMaxFutureMs=300000`, `tombstoneRetentionHours=24`.
 - **MQTT Client Layer** (Locked Spec §6): Connection lifecycle, exponential backoff (1s→32s, jitter ±20%), session persistence (Clean Start=false, Session Expiry=24h), LWT, QoS=1 & retain=false enforcement, TLS when credentials present.
+- **Command Correlation Layer** (Locked Spec §3.1-3.2): Request/response correlation with UUIDv4 generation, operation-specific timeouts (10s/20s/30s), deduplication cache (10min TTL, LRU eviction), payload size validation (512 KiB limit), structured logging, and async/await API over MQTT.
 
 ## 🏗️ Architecture
 
@@ -277,6 +278,56 @@ await sub.cancel();
 **Sessions:** Clean Start=false; Session Expiry=24h.
 
 **TLS:** Automatically enforced when credentials are present; server cert validation required.
+
+## Command Correlation Usage
+
+The CommandCorrelator provides async/await API over MQTT with automatic ID generation, timeouts, and deduplication.
+
+```dart
+import 'package:merkle_kv_core/merkle_kv_core.dart';
+
+// Create correlator with MQTT publish function
+final correlator = CommandCorrelator(
+  publishCommand: (jsonPayload) async {
+    await mqttClient.publish('${config.topicPrefix}/${targetClientId}/cmd', jsonPayload);
+  },
+  logger: (entry) => print('Request lifecycle: ${entry.toString()}'),
+);
+
+// Send commands with automatic correlation
+final command = Command(
+  id: '', // Empty ID will generate UUIDv4 automatically
+  op: 'GET',
+  key: 'user:123',
+);
+
+try {
+  final response = await correlator.send(command);
+  if (response.isSuccess) {
+    print('Result: ${response.value}');
+  } else {
+    print('Error: ${response.error} (${response.errorCode})');
+  }
+} catch (e) {
+  print('Request failed: $e');
+}
+
+// Handle incoming responses
+mqttClient.subscribe('${config.topicPrefix}/${config.clientId}/res', (topic, payload) {
+  correlator.onResponse(payload);
+});
+
+// Cleanup
+correlator.dispose();
+```
+
+**Features:**
+- **Automatic UUIDv4 generation** when command ID is empty
+- **Operation-specific timeouts**: 10s (single-key), 20s (multi-key), 30s (sync)
+- **Deduplication cache**: 10-minute TTL with LRU eviction for idempotent replies
+- **Payload validation**: Rejects commands > 512 KiB
+- **Structured logging**: Request lifecycle with timing and error codes
+- **Late response handling**: Caches responses that arrive after timeout
 
 final store = MerkleKVMobile(config);
 await store.connect();
