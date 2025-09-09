@@ -34,6 +34,12 @@ The system provides:
 - Efficient Merkle tree-based anti-entropy synchronization
 - Device-specific message routing using client IDs
 
+## What's New (Phase 1 — Core)
+
+- **MerkleKVConfig** (Locked Spec §11): Centralized, immutable configuration with strict validation, secure credential handling, JSON (sans secrets), `copyWith`, and defaults:
+  - `keepAliveSeconds=60`, `sessionExpirySeconds=86400`, `skewMaxFutureMs=300000`, `tombstoneRetentionHours=24`.
+- **MQTT Client Layer** (Locked Spec §6): Connection lifecycle, exponential backoff (1s→32s, jitter ±20%), session persistence (Clean Start=false, Session Expiry=24h), LWT, QoS=1 & retain=false enforcement, TLS when credentials present.
+
 ## 🏗️ Architecture
 
 ### Communication Model
@@ -187,31 +193,72 @@ MQTT Message → JSON Parsing → Command Validation → Command Execution →
 Response Generation → Response Publishing → (Optional) Replication
 ```
 
-## 🛠️ Configuration
+## Configuration (MerkleKVConfig)
+
+Locked Spec §11 defaults are applied automatically. Secrets are never serialized.
 
 ```dart
-final config = MerkleKVConfig(
-  // MQTT Connection
-  mqttBroker: 'broker.example.com',
-  mqttPort: 1883,
-  mqttUsername: 'user',  // Optional
-  mqttPassword: 'pass',  // Optional
-  
-  // Device Identity
-  clientId: 'mobile-device-123',
-  nodeId: 'user-456-device',
-  
-  // Topics
-  topicPrefix: 'merkle_kv_mobile',
-  
-  // Storage
+import 'package:merkle_kv_core/merkle_kv_core.dart';
+
+final cfg = MerkleKVConfig(
+  mqttHost: 'broker.example.com',
+  clientId: 'android-123',
+  nodeId: 'node-01',
+  mqttUseTls: true,           // TLS recommended especially with credentials
+  username: 'user',           // sensitive: excluded from toJson()
+  password: 'pass',           // sensitive: excluded from toJson()
   persistenceEnabled: true,
-  storagePath: '/data/local/tmp/merkle_kv',
-  
-  // Replication
-  replicationEnabled: true,
-  antientropyIntervalSeconds: 300,
+  storagePath: '/data/merklekv',
 );
+
+// JSON does not include secrets
+final json = cfg.toJson();
+final restored = MerkleKVConfig.fromJson(json, username: 'user', password: 'pass');
+```
+
+**Defaults (per §11):** keepAlive=60, sessionExpiry=86400, skewMaxFutureMs=300000, tombstoneRetentionHours=24.
+
+**Validation:** clientId/nodeId length ∈ [1,128]; mqttPort ∈ [1,65535]; timeouts > 0; storagePath required when persistence is enabled.
+
+**Security:** If credentials are provided and mqttUseTls=false, a security warning is emitted.
+
+## MQTT Client Usage
+
+The client enforces QoS=1 and retain=false for application messages. LWT is configured automatically and suppressed on graceful disconnect.
+
+```dart
+import 'package:merkle_kv_core/merkle_kv_core.dart';
+
+final client = MqttClientImpl(cfg); // uses MerkleKVConfig
+
+// Observe connection state
+final sub = client.connectionState.listen((s) {
+  // disconnected, connecting, connected, disconnecting
+});
+
+// Connect (<=10s typical)
+await client.connect();
+
+// Subscribe
+await client.subscribe('${cfg.topicPrefix}/${cfg.clientId}/cmd', (topic, payload) {
+  // handle command
+});
+
+// Publish (QoS=1, retain=false enforced)
+await client.publish('${cfg.topicPrefix}/${cfg.clientId}/res', '{"status":"ok"}');
+
+// Graceful disconnect (suppresses LWT)
+await client.disconnect();
+
+// Cleanup
+await sub.cancel();
+```
+
+**Reconnect:** Exponential backoff 1s→2s→4s→…→32s with ±20% jitter. Messages published during disconnect are queued (bounded) and flushed after reconnect.
+
+**Sessions:** Clean Start=false; Session Expiry=24h.
+
+**TLS:** Automatically enforced when credentials are present; server cert validation required.
 
 final store = MerkleKVMobile(config);
 await store.connect();
@@ -350,6 +397,21 @@ The MerkleKV Mobile project structure has been created and includes:
 - **Docker** (for MQTT broker)
 - **Git** for version control
 
+## Quick Start (Dev)
+
+```bash
+# 1) Bootstrap monorepo
+melos bootstrap
+
+# 2) Static analysis & format checks
+dart analyze
+dart format --output=none --set-exit-if-changed .
+
+# 3) Run tests (pure Dart + Flutter where applicable)
+dart test -p vm packages/merkle_kv_core
+flutter test
+```
+
 ### Development Setup
 
 1. **Clone and Bootstrap the Project**:
@@ -458,6 +520,17 @@ melos run test
 # Setup development environment
 ./scripts/dev/setup.sh
 ```
+
+### Code Formatting
+
+This project enforces strict Dart formatting in CI.  
+Before committing or opening a PR, always run:
+
+```bash
+dart format .
+```
+
+If formatting is not applied, CI will fail.
 
 ## ⚡ Next Steps
 

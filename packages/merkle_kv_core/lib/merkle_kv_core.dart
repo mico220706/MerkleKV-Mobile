@@ -9,5 +9,10 @@ export 'src/config/merkle_kv_config.dart';
 export 'src/config/invalid_config_exception.dart';
 export 'src/config/default_config.dart';
 
+// MQTT Client
+export 'src/mqtt/connection_state.dart';
+export 'src/mqtt/mqtt_client_interface.dart';
+export 'src/mqtt/mqtt_client_impl.dart';
+
 // Core exports will be added in future phases
 // export 'src/merkle_kv_mobile.dart';
