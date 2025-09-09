@@ -64,6 +64,24 @@ MerkleKV Mobile uses a pure MQTT communication model:
    merkle_kv_mobile/replication/events
    ```
 
+### Topic Scheme (Canonical)
+
+The canonical topic scheme follows Locked Spec §2 with strict validation:
+
+```dart
+import 'package:merkle_kv_core/merkle_kv_core.dart';
+
+final scheme = TopicScheme.create('prod/cluster-a', 'device-123');
+
+print(scheme.commandTopic);    // prod/cluster-a/device-123/cmd
+print(scheme.responseTopic);   // prod/cluster-a/device-123/res  
+print(scheme.replicationTopic); // prod/cluster-a/replication/events
+
+// Topic router manages subscribe/publish with auto re-subscribe
+final router = TopicRouterImpl(config, mqttClient);
+await router.subscribeToCommands((topic, payload) => handleCommand(payload));
+```
+
 ### Data Flow
 
 #### Command Execution Flow
