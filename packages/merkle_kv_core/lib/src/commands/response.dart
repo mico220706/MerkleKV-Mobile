@@ -14,7 +14,7 @@ class ErrorCode {
       case invalidRequest:
         return 'Invalid request format or parameters';
       case timeout:
-        return 'Request timed out';
+        return 'Request timeout';
       case idempotentReplay:
         return 'Idempotent replay of cached response';
       case payloadTooLarge:

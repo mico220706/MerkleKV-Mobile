@@ -199,7 +199,13 @@ class CommandCorrelator {
       return response;
     }
 
-    // Check deduplication cache
+    // Check if request is already pending (after validation)
+    final existingRequest = _pendingRequests[commandId];
+    if (existingRequest != null) {
+      return existingRequest.completer.future;
+    }
+
+    // Check deduplication cache (only if no pending request exists)
     final cachedEntry = _deduplicationCache[commandId];
     if (cachedEntry != null) {
       if (!cachedEntry.isExpired) {
@@ -222,13 +228,7 @@ class CommandCorrelator {
       }
     }
 
-    // Check if request is already pending
-    if (_pendingRequests.containsKey(commandId)) {
-      final existingRequest = _pendingRequests[commandId]!;
-      return existingRequest.completer.future;
-    }
-
-    // Create pending request with timeout
+    // Create pending request with timeout (race-safe)
     final completer = Completer<Response>();
     final timeout = commandWithId.expectedTimeout;
 
@@ -243,6 +243,7 @@ class CommandCorrelator {
       timeoutTimer: timeoutTimer,
     );
 
+    // Insert the pending request
     _pendingRequests[commandId] = pendingRequest;
 
     _log(_LogEntry(
