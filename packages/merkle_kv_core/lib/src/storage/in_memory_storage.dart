@@ -292,12 +292,24 @@ class InMemoryStorage implements StorageInterface {
     // Write to temporary file in the same directory
     final tempFile = File('${target.path}.tmp');
 
-    for (final entry in _entries.values) {
-      final record = _createPersistedRecord(entry);
-      await tempFile.writeAsString('$record\n', mode: FileMode.append);
+    // Ensure directory exists right before writing and write with retry
+    await _ensureParentDir(tempFile);
+    try {
+      for (final entry in _entries.values) {
+        final record = _createPersistedRecord(entry);
+        await tempFile.writeAsString('$record\n', mode: FileMode.append);
+      }
+    } on FileSystemException {
+      // Retry once if directory was deleted after our check
+      await _ensureParentDir(tempFile);
+      for (final entry in _entries.values) {
+        final record = _createPersistedRecord(entry);
+        await tempFile.writeAsString('$record\n', mode: FileMode.append);
+      }
     }
 
-    // Atomically replace the original file with robust fallback
+    // Ensure target directory exists before rename and use robust fallback
+    await _ensureParentDir(target);
     try {
       await tempFile.rename(target.path);
     } on FileSystemException {
