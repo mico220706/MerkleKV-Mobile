@@ -2,7 +2,7 @@
 /// 
 /// This is a placeholder for the core MerkleKV Mobile client.
 /// Implementation will be added in future phases.
-library;
+library merkle_kv_mobile;
 
 /// Placeholder class for MerkleKV Mobile client
 class MerkleKVMobile {
