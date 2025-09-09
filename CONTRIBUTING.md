@@ -1,10 +1,13 @@
 # Contributing to MerkleKV Mobile
 
-Thank you for your interest in contributing to MerkleKV Mobile! This document provides guidelines for contributing to our MQTT-based distributed key-value store with Merkle tree replication.
+Thank you for your interest in contributing to MerkleKV Mobile! This document provides guidelines for
+contributing to our MQTT-based distributed key-value store with Merkle tree replication.
 
 ## 🎯 Project Overview
 
-MerkleKV Mobile is an **MQTT-only** distributed key-value store with **Locked Specification v1.0**. All contributions must adhere to the locked specification constraints to ensure compatibility and deterministic behavior.
+MerkleKV Mobile is an **MQTT-only** distributed key-value store with **Locked Specification v1.0**.
+All contributions must adhere to the locked specification constraints to ensure compatibility and
+deterministic behavior.
 
 ### Locked Spec v1.0 Constraints
 
@@ -12,7 +15,7 @@ MerkleKV Mobile is an **MQTT-only** distributed key-value store with **Locked Sp
 
 - **Transport**: MQTT-only (no HTTP, WebSocket, or other protocols)
 - **MQTT Settings**: QoS=1, retain=false (never changed)
-- **Topic Structure**: 
+- **Topic Structure**:
   - Commands/Responses: `{prefix}/{client_id}/cmd` and `{prefix}/{client_id}/res`
   - Replication: `{prefix}/replication/events`
 - **Size Limits**:
@@ -38,22 +41,26 @@ MerkleKV Mobile is an **MQTT-only** distributed key-value store with **Locked Sp
 ### Development Setup
 
 1. **Fork and clone the repository**
+
    ```bash
    git clone https://github.com/YOUR_USERNAME/MerkleKV-Mobile.git
    cd MerkleKV-Mobile
    ```
 
 2. **Install dependencies**
+
    ```bash
    npm install
    ```
 
 3. **Run tests**
+
    ```bash
    npm test
    ```
 
 4. **Start development environment**
+
    ```bash
    npm run dev
    ```
@@ -80,7 +87,7 @@ MerkleKV Mobile is an **MQTT-only** distributed key-value store with **Locked Sp
 
 We use **Conventional Commits** specification:
 
-```
+```text
 <type>[optional scope]: <description>
 
 [optional body]
@@ -89,6 +96,7 @@ We use **Conventional Commits** specification:
 ```
 
 **Types:**
+
 - `feat`: New feature (MINOR version)
 - `fix`: Bug fix (PATCH version)
 - `docs`: Documentation only
@@ -99,6 +107,7 @@ We use **Conventional Commits** specification:
 - `chore`: Build process, dependencies, etc.
 
 **Examples:**
+
 ```bash
 feat(mqtt): add connection retry with exponential backoff
 fix(replication): ensure vector timestamp consistency
@@ -166,6 +175,7 @@ test(core): add idempotency validation tests
 ### Required Test Scenarios
 
 **For every feature:**
+
 - [ ] Happy path functionality
 - [ ] Error conditions and edge cases
 - [ ] Network disconnection/reconnection
@@ -175,6 +185,7 @@ test(core): add idempotency validation tests
 - [ ] Mobile performance impact
 
 **For MQTT operations:**
+
 - [ ] QoS=1 delivery confirmation
 - [ ] retain=false verification
 - [ ] Topic structure compliance
@@ -212,6 +223,7 @@ npm run test:property
 ### Documentation Updates
 
 **Required for every PR:**
+
 - [ ] Update API documentation for new/changed interfaces
 - [ ] Add/update examples for new features
 - [ ] Update README.md if user-facing changes
@@ -267,7 +279,7 @@ npm run test:property
 
 - **Maintainers**: Core team members with merge rights
 - **CODEOWNERS**: Automatic assignment by file path
-- **Review Requirements**: 
+- **Review Requirements**:
   - 1+ maintainer approval for bug fixes
   - 2+ maintainer approvals for features
   - Security team approval for security changes
@@ -281,6 +293,7 @@ npm run test:property
 ## 🏆 Recognition
 
 Contributors are recognized in:
+
 - **CHANGELOG.md**: Feature and fix credits
 - **Release Notes**: Major contribution highlights
 - **Contributors Graph**: GitHub contribution tracking

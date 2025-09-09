@@ -1,63 +1,50 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import 'package:go_router/go_router.dart';
-
-import 'screens/home_screen.dart';
-import 'screens/sync_screen.dart';
-import 'screens/settings_screen.dart';
-import 'services/demo_service.dart';
 
 void main() {
-  runApp(const MerkleKVDemoApp());
+  runApp(const MyApp());
 }
 
-class MerkleKVDemoApp extends StatelessWidget {
-  const MerkleKVDemoApp({super.key});
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    return MultiProvider(
-      providers: [
-        ChangeNotifierProvider(
-          create: (context) => DemoService(),
-        ),
-      ],
-      child: MaterialApp.router(
-        title: 'MerkleKV Mobile Demo',
+  Widget build(BuildContext context) => MaterialApp(
+        title: 'MerkleKV Demo',
         theme: ThemeData(
-          colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
-          useMaterial3: true,
+          primarySwatch: Colors.blue,
         ),
-        routerConfig: _router,
-      ),
-    );
-  }
+        home: const MyHomePage(title: 'MerkleKV Mobile Demo'),
+      );
+}
 
-  static final GoRouter _router = GoRouter(
-    routes: <RouteBase>[
-      GoRoute(
-        path: '/',
-        name: 'home',
-        builder: (BuildContext context, GoRouterState state) {
-          return const HomeScreen();
-        },
-        routes: <RouteBase>[
-          GoRoute(
-            path: '/sync',
-            name: 'sync',
-            builder: (BuildContext context, GoRouterState state) {
-              return const SyncScreen();
-            },
+class MyHomePage extends StatefulWidget {
+  const MyHomePage({super.key, required this.title});
+
+  final String title;
+
+  @override
+  State<MyHomePage> createState() => _MyHomePageState();
+}
+
+class _MyHomePageState extends State<MyHomePage> {
+  @override
+  Widget build(BuildContext context) => Scaffold(
+        appBar: AppBar(
+          title: Text(widget.title),
+        ),
+        body: const Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: <Widget>[
+              Text(
+                'MerkleKV Mobile Demo',
+                style: TextStyle(fontSize: 24),
+              ),
+              Text(
+                'Package structure initialized successfully!',
+              ),
+            ],
           ),
-          GoRoute(
-            path: '/settings',
-            name: 'settings',
-            builder: (BuildContext context, GoRouterState state) {
-              return const SettingsScreen();
-            },
-          ),
-        ],
-      ),
-    ],
-  );
+        ),
+      );
 }

@@ -1,5 +1,5 @@
 name: merkle_kv_mobile
-repository: https://github.com/mico220706/MerkleKV-Mobile
+repository: https://github.com/AI-Decenter/MerkleKV-Mobile
 
 packages:
   - packages/**
@@ -23,6 +23,22 @@ scripts:
     run: dart test
     exec:
       failFast: true
+  
+  test:melos:dart:
+    description: Run Dart tests for non-Flutter packages
+    run: dart test --reporter=expanded --timeout=30s
+    exec:
+      failFast: true
+    packageFilters:
+      ignore: "*flutter*"
+      
+  test:melos:flutter:
+    description: Run Flutter tests for Flutter packages
+    run: flutter test --machine || flutter test
+    exec:
+      failFast: true
+    packageFilters:
+      flutter: true
   
   format:
     run: dart format --set-exit-if-changed .

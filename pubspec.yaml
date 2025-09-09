@@ -9,4 +9,5 @@ environment:
 # This is a workspace root file for Melos monorepo management
 # Individual packages have their own pubspec.yaml files
 dev_dependencies:
+  flutter_lints: ^3.0.0
   melos: ^4.0.0
