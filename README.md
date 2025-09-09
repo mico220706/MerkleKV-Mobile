@@ -446,6 +446,18 @@ melos run test
 - Add support for complex data types
 - Implement cross-platform plugins
 
+## Code Style and CI Policy
+
+This repository enforces strict Dart formatting in CI. All `.dart` files must pass `dart format --set-exit-if-changed`.
+
+Developers must run the formatter locally before committing:
+
+```bash
+dart format .
+```
+
+CI will fail if formatting is not compliant.
+
 ## 🤝 Contributing
 
 We welcome contributions! Please see our [Contributing Guidelines](CONTRIBUTING.md) for details on:
