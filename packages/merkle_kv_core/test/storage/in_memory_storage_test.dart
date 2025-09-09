@@ -456,19 +456,30 @@ void main() {
     group('Persistence (Minimal)', () {
       late InMemoryStorage persistentStorage;
       late MerkleKVConfig persistentConfig;
+      late Directory tempDir;
 
-      setUp(() {
+      setUp(() async {
+        // Create unique temporary directory for each test
+        tempDir = await Directory.systemTemp.createTemp('merkle_kv_test_');
+        final storagePath = '${tempDir.path}/merkle_kv_storage.jsonl';
+
         persistentConfig = MerkleKVConfig.create(
           mqttHost: 'test-host',
           clientId: 'test-client',
           nodeId: 'test-node',
           persistenceEnabled: true,
+          storagePath: storagePath,
         );
         persistentStorage = InMemoryStorage(persistentConfig);
       });
 
       tearDown(() async {
         await persistentStorage.dispose();
+
+        // Clean up temporary directory
+        if (await tempDir.exists()) {
+          await tempDir.delete(recursive: true);
+        }
       });
 
       test('persists and loads entries across restarts', () async {
@@ -522,10 +533,6 @@ void main() {
         // Initialize storage and manually create persistence file with conflicting entries
         await persistentStorage.initialize();
         await persistentStorage.dispose();
-
-        // Manually create persistence file with entries that conflict
-        final storageDir = Directory('./storage');
-        await storageDir.create(recursive: true);
 
         final olderEntry = StorageEntry.value(
           key: 'conflict-key',

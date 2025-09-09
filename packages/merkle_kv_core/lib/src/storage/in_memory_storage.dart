@@ -138,8 +138,13 @@ class InMemoryStorage implements StorageInterface {
   @override
   Future<void> dispose() async {
     if (_config.persistenceEnabled && _initialized) {
-      // Final persistence of any pending changes
-      await _rewritePersistenceFile();
+      try {
+        // Final persistence of any pending changes
+        await _rewritePersistenceFile();
+      } catch (e) {
+        // Log warning but don't crash - in-memory map remains valid
+        print('Warning: Failed to persist during dispose: $e');
+      }
     }
     _entries.clear();
     _initialized = false;
@@ -238,6 +243,9 @@ class InMemoryStorage implements StorageInterface {
   /// Appends an entry to the persistence file with integrity checksum.
   Future<void> _appendToPersistence(StorageEntry entry) async {
     if (_persistenceFile == null) return;
+
+    // Ensure parent directory exists before appending
+    await _ensureParentDir(_persistenceFile!);
 
     final record = _createPersistedRecord(entry);
     await _persistenceFile!.writeAsString('$record\n', mode: FileMode.append);
