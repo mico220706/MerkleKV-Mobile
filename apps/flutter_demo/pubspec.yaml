@@ -14,8 +14,6 @@ dependencies:
   # MerkleKV packages
   merkle_kv_core:
     path: ../../packages/merkle_kv_core
-  merkle_kv_flutter:
-    path: ../../packages/merkle_kv_flutter
   
   # UI and state management
   cupertino_icons: ^1.0.2
