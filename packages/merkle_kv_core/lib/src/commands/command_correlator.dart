@@ -61,6 +61,7 @@ class _CacheEntry {
 class _PendingRequest {
   final Command command;
   final Completer<Response> completer;
+  final Future<Response> future; // Store the future directly
   final Stopwatch stopwatch;
   final Timer timeoutTimer;
 
@@ -69,7 +70,7 @@ class _PendingRequest {
     required this.completer,
     required this.stopwatch,
     required this.timeoutTimer,
-  });
+  }) : future = completer.future; // Initialize future in constructor
 
   void dispose() {
     timeoutTimer.cancel();
@@ -152,7 +153,7 @@ class CommandCorrelator {
   ///
   /// Generates UUIDv4 ID if not provided, validates payload size,
   /// handles deduplication, and manages timeouts.
-  Future<Response> send(Command command) async {
+  Future<Response> send(Command command) {
     final stopwatch = Stopwatch()..start();
 
     // Generate ID if not provided, validate if provided
@@ -196,16 +197,10 @@ class CommandCorrelator {
         result: 'error',
         errorCode: response.errorCode,
       ));
-      return response;
+      return Future.value(response);
     }
 
-    // Check if request is already pending (after validation)
-    final existingRequest = _pendingRequests[commandId];
-    if (existingRequest != null) {
-      return existingRequest.completer.future;
-    }
-
-    // Check deduplication cache (only if no pending request exists)
+    // Check deduplication cache first
     final cachedEntry = _deduplicationCache[commandId];
     if (cachedEntry != null) {
       if (!cachedEntry.isExpired) {
@@ -221,14 +216,20 @@ class CommandCorrelator {
           result: 'idempotent_replay',
           errorCode: ErrorCode.idempotentReplay,
         ));
-        return response;
+        return Future.value(response);
       } else {
         // Remove expired entry
         _removeFromCache(commandId);
       }
     }
 
-    // Create pending request with timeout (race-safe)
+    // Check for existing pending request first
+    final existingPendingRequest = _pendingRequests[commandId];
+    if (existingPendingRequest != null) {
+      return existingPendingRequest.future;
+    }
+
+    // Create new pending request synchronously
     final completer = Completer<Response>();
     final timeout = commandWithId.expectedTimeout;
 
@@ -243,12 +244,24 @@ class CommandCorrelator {
       timeoutTimer: timeoutTimer,
     );
 
-    // Insert the pending request
+    // Store the pending request immediately
     _pendingRequests[commandId] = pendingRequest;
 
+    // Start async publishing and return the future
+    _sendNew(commandWithId, payloadSizeBytes, stopwatch, pendingRequest);
+    return pendingRequest.future;
+  }
+
+  /// Helper method to handle async publishing for new requests.
+  Future<void> _sendNew(Command commandWithId, int payloadSizeBytes,
+      Stopwatch stopwatch, _PendingRequest pendingRequest) async {
+    final commandId = commandWithId.id;
+    final jsonPayload = commandWithId.toJsonString();
+
+    // We are the owner - log and publish
     _log(_LogEntry(
       requestId: commandId,
-      op: command.op,
+      op: commandWithId.op,
       sizeBytes: payloadSizeBytes,
       phase: 'request_start',
       durationMs: stopwatch.elapsedMilliseconds,
@@ -256,12 +269,12 @@ class CommandCorrelator {
     ));
 
     try {
-      // Publish command via MQTT
+      // Publish command via MQTT (only the owner publishes)
       await _publishCommand(jsonPayload);
 
       _log(_LogEntry(
         requestId: commandId,
-        op: command.op,
+        op: commandWithId.op,
         sizeBytes: payloadSizeBytes,
         phase: 'request_sent',
         durationMs: stopwatch.elapsedMilliseconds,
@@ -276,7 +289,7 @@ class CommandCorrelator {
           Response.internalError(commandId, 'Failed to publish command: $e');
       _log(_LogEntry(
         requestId: commandId,
-        op: command.op,
+        op: commandWithId.op,
         sizeBytes: payloadSizeBytes,
         phase: 'publish_error',
         durationMs: stopwatch.elapsedMilliseconds,
@@ -284,10 +297,11 @@ class CommandCorrelator {
         errorCode: response.errorCode,
       ));
 
-      return response;
+      pendingRequest.completer.complete(response);
+      return;
     }
 
-    return completer.future;
+    // Publishing successful - the response will be handled by onResponse
   }
 
   /// Handles incoming response from MQTT.
