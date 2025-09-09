@@ -11,6 +11,7 @@ analyzer:
     - "**/generated/**"
     - "build/**"
     - ".dart_tool/**"
+    - "apps/flutter_demo/**"  # Exclude Flutter demo until Flutter is available
   
   strong-mode:
     implicit-casts: false
