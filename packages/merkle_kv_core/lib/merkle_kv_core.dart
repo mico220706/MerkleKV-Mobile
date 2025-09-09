@@ -21,5 +21,11 @@ export 'src/commands/command.dart';
 export 'src/commands/response.dart';
 export 'src/commands/command_correlator.dart';
 
+// Storage
+export 'src/storage/storage_interface.dart';
+export 'src/storage/storage_entry.dart';
+export 'src/storage/in_memory_storage.dart';
+export 'src/storage/storage_factory.dart';
+
 // Core exports will be added in future phases
 // export 'src/merkle_kv_mobile.dart';
