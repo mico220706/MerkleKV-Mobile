@@ -174,7 +174,7 @@ class InMemoryStorage implements StorageInterface {
   /// Initializes persistence file path and directory.
   Future<void> _initializePersistence() async {
     String storageDirectory;
-    
+
     if (_config.storagePath != null) {
       // Use provided path
       final file = File(_config.storagePath!);
@@ -184,7 +184,8 @@ class InMemoryStorage implements StorageInterface {
       // Create temp directory with default filename
       final tempDir = Directory.systemTemp.createTempSync('merkle_kv_');
       storageDirectory = tempDir.path;
-      _persistenceFile = File('${tempDir.path}${Platform.pathSeparator}merkle_kv_storage.jsonl');
+      _persistenceFile = File(
+          '${tempDir.path}${Platform.pathSeparator}merkle_kv_storage.jsonl');
     }
 
     // Ensure directory exists
