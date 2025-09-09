@@ -10,6 +10,8 @@ abstract class StorageInterface {
   ///
   /// Returns null if the key doesn't exist or has been deleted (tombstone).
   /// Only returns non-tombstone entries to maintain read-your-writes consistency.
+  /// Tombstone entries are still stored internally and can be accessed via [getAllEntries()],
+  /// but are filtered out from [get()] operations.
   Future<StorageEntry?> get(String key);
 
   /// Stores an entry with LWW conflict resolution.
