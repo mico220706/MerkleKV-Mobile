@@ -21,7 +21,7 @@ class DefaultConfig {
       cleanSession: true,
     );
   }
-  
+
   /// Production configuration with TLS
   static MerkleKVConfig production({
     required String mqttBroker,
@@ -51,7 +51,7 @@ class DefaultConfig {
       cleanSession: false,
     );
   }
-  
+
   /// Testing configuration with in-memory storage
   static MerkleKVConfig testing({
     required String clientId,
@@ -73,7 +73,7 @@ class DefaultConfig {
       cleanSession: true,
     );
   }
-  
+
   /// Offline configuration for testing without MQTT
   static MerkleKVConfig offline({
     required String clientId,
@@ -93,7 +93,7 @@ class DefaultConfig {
       connectionTimeout: const Duration(seconds: 1),
     );
   }
-  
+
   /// Mobile-optimized configuration
   static MerkleKVConfig mobile({
     required String mqttBroker,
@@ -127,7 +127,7 @@ class DefaultConfig {
       antientropyInterval: const Duration(minutes: 10),
     );
   }
-  
+
   /// Edge device configuration with minimal resources
   static MerkleKVConfig edge({
     required String mqttBroker,

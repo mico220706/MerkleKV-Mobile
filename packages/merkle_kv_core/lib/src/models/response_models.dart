@@ -13,28 +13,28 @@ enum OperationStatus {
 class OperationResponse {
   /// Request ID that corresponds to this response
   final String id;
-  
+
   /// Operation status
   final OperationStatus status;
-  
+
   /// Value returned by the operation (for GET, INCR, DECR, etc.)
   final String? value;
-  
+
   /// Multiple values returned (for MGET operations)
   final Map<String, String?>? values;
-  
+
   /// Error message if status is error
   final String? error;
-  
+
   /// Timestamp when the response was generated
   final DateTime timestamp;
-  
+
   /// Operation that was performed
   final String? operation;
-  
+
   /// Key that was operated on
   final String? key;
-  
+
   const OperationResponse({
     required this.id,
     required this.status,
@@ -45,7 +45,7 @@ class OperationResponse {
     this.operation,
     this.key,
   });
-  
+
   /// Create a successful response
   factory OperationResponse.success({
     required String id,
@@ -64,7 +64,7 @@ class OperationResponse {
       key: key,
     );
   }
-  
+
   /// Create a not found response
   factory OperationResponse.notFound({
     required String id,
@@ -79,7 +79,7 @@ class OperationResponse {
       key: key,
     );
   }
-  
+
   /// Create an error response
   factory OperationResponse.error({
     required String id,
@@ -96,7 +96,7 @@ class OperationResponse {
       key: key,
     );
   }
-  
+
   /// Create a timeout response
   factory OperationResponse.timeout({
     required String id,
@@ -112,7 +112,7 @@ class OperationResponse {
       key: key,
     );
   }
-  
+
   /// Create from JSON map
   factory OperationResponse.fromJson(Map<String, dynamic> json) {
     final statusString = json['status'] as String;
@@ -120,23 +120,24 @@ class OperationResponse {
       (s) => s.name.toUpperCase() == statusString.toUpperCase(),
       orElse: () => OperationStatus.error,
     );
-    
+
     return OperationResponse(
       id: json['id'] as String,
       status: status,
       value: json['value'] as String?,
-      values: json['values'] != null 
+      values: json['values'] != null
           ? Map<String, String?>.from(json['values'] as Map)
           : null,
       error: json['error'] as String?,
       timestamp: json['timestamp'] != null
-          ? DateTime.fromMillisecondsSinceEpoch(json['timestamp'] as int, isUtc: true)
+          ? DateTime.fromMillisecondsSinceEpoch(json['timestamp'] as int,
+              isUtc: true)
           : DateTime.now().toUtc(),
       operation: json['operation'] as String?,
       key: json['key'] as String?,
     );
   }
-  
+
   /// Convert to JSON map
   Map<String, dynamic> toJson() {
     return {
@@ -150,19 +151,20 @@ class OperationResponse {
       if (key != null) 'key': key,
     };
   }
-  
+
   /// Check if the operation was successful
   bool get isSuccess => status == OperationStatus.ok;
-  
+
   /// Check if the operation failed
-  bool get isError => status == OperationStatus.error || status == OperationStatus.timeout;
-  
+  bool get isError =>
+      status == OperationStatus.error || status == OperationStatus.timeout;
+
   /// Check if the key was not found
   bool get isNotFound => status == OperationStatus.notFound;
-  
+
   /// Check if the operation timed out
   bool get isTimeout => status == OperationStatus.timeout;
-  
+
   @override
   String toString() {
     final buffer = StringBuffer('OperationResponse{');
@@ -177,12 +179,12 @@ class OperationResponse {
     buffer.write('}');
     return buffer.toString();
   }
-  
+
   @override
   bool operator ==(Object other) {
     if (identical(this, other)) return true;
     if (other is! OperationResponse) return false;
-    
+
     return id == other.id &&
         status == other.status &&
         value == other.value &&
@@ -192,7 +194,7 @@ class OperationResponse {
         operation == other.operation &&
         key == other.key;
   }
-  
+
   @override
   int get hashCode {
     return Object.hash(
@@ -206,16 +208,16 @@ class OperationResponse {
       key,
     );
   }
-  
+
   static bool _mapEquals(Map<String, String?>? a, Map<String, String?>? b) {
     if (a == null) return b == null;
     if (b == null) return false;
     if (a.length != b.length) return false;
-    
+
     for (final key in a.keys) {
       if (!b.containsKey(key) || a[key] != b[key]) return false;
     }
-    
+
     return true;
   }
 }
@@ -224,19 +226,19 @@ class OperationResponse {
 class BatchOperationResponse {
   /// Request ID that corresponds to this response
   final String id;
-  
+
   /// Individual operation responses
   final List<OperationResponse> responses;
-  
+
   /// Overall status of the batch operation
   final OperationStatus status;
-  
+
   /// Error message if the entire batch failed
   final String? error;
-  
+
   /// Timestamp when the batch response was generated
   final DateTime timestamp;
-  
+
   const BatchOperationResponse({
     required this.id,
     required this.responses,
@@ -244,7 +246,7 @@ class BatchOperationResponse {
     this.error,
     required this.timestamp,
   });
-  
+
   /// Create a successful batch response
   factory BatchOperationResponse.success({
     required String id,
@@ -257,7 +259,7 @@ class BatchOperationResponse {
       timestamp: DateTime.now().toUtc(),
     );
   }
-  
+
   /// Create an error batch response
   factory BatchOperationResponse.error({
     required String id,
@@ -272,7 +274,7 @@ class BatchOperationResponse {
       timestamp: DateTime.now().toUtc(),
     );
   }
-  
+
   /// Create from JSON map
   factory BatchOperationResponse.fromJson(Map<String, dynamic> json) {
     final statusString = json['status'] as String;
@@ -280,23 +282,24 @@ class BatchOperationResponse {
       (s) => s.name.toUpperCase() == statusString.toUpperCase(),
       orElse: () => OperationStatus.error,
     );
-    
+
     final responseList = json['responses'] as List<dynamic>? ?? [];
     final responses = responseList
         .map((r) => OperationResponse.fromJson(r as Map<String, dynamic>))
         .toList();
-    
+
     return BatchOperationResponse(
       id: json['id'] as String,
       responses: responses,
       status: status,
       error: json['error'] as String?,
       timestamp: json['timestamp'] != null
-          ? DateTime.fromMillisecondsSinceEpoch(json['timestamp'] as int, isUtc: true)
+          ? DateTime.fromMillisecondsSinceEpoch(json['timestamp'] as int,
+              isUtc: true)
           : DateTime.now().toUtc(),
     );
   }
-  
+
   /// Convert to JSON map
   Map<String, dynamic> toJson() {
     return {
@@ -307,19 +310,21 @@ class BatchOperationResponse {
       'timestamp': timestamp.millisecondsSinceEpoch,
     };
   }
-  
+
   /// Check if all operations were successful
-  bool get isSuccess => status == OperationStatus.ok && responses.every((r) => r.isSuccess);
-  
+  bool get isSuccess =>
+      status == OperationStatus.ok && responses.every((r) => r.isSuccess);
+
   /// Check if any operation failed
-  bool get hasErrors => status == OperationStatus.error || responses.any((r) => r.isError);
-  
+  bool get hasErrors =>
+      status == OperationStatus.error || responses.any((r) => r.isError);
+
   /// Get the number of successful operations
   int get successCount => responses.where((r) => r.isSuccess).length;
-  
+
   /// Get the number of failed operations
   int get errorCount => responses.where((r) => r.isError).length;
-  
+
   @override
   String toString() {
     return 'BatchOperationResponse{'
@@ -330,19 +335,19 @@ class BatchOperationResponse {
         'errors: $errorCount'
         '}';
   }
-  
+
   @override
   bool operator ==(Object other) {
     if (identical(this, other)) return true;
     if (other is! BatchOperationResponse) return false;
-    
+
     return id == other.id &&
         _listEquals(responses, other.responses) &&
         status == other.status &&
         error == other.error &&
         timestamp == other.timestamp;
   }
-  
+
   @override
   int get hashCode {
     return Object.hash(
@@ -353,8 +358,9 @@ class BatchOperationResponse {
       timestamp,
     );
   }
-  
-  static bool _listEquals(List<OperationResponse> a, List<OperationResponse> b) {
+
+  static bool _listEquals(
+      List<OperationResponse> a, List<OperationResponse> b) {
     if (a.length != b.length) return false;
     for (int i = 0; i < a.length; i++) {
       if (a[i] != b[i]) return false;
