@@ -305,7 +305,7 @@ jobs:
     # the complexity and maintenance overhead of extensive mocking strategies
     services:
       mosquitto:
-        image: eclipse-mosquitto:2.0
+        image: ghcr.io/efrecon/mqtt-broker:latest
         ports:
           - 1883:1883
           - 9001:9001
@@ -353,21 +353,30 @@ jobs:
           # Install MQTT client tools
           sudo apt-get update && sudo apt-get install -y mosquitto-clients
           
-          # Test broker connectivity with timeout and retries
-          for i in {1..5}; do
-            if mosquitto_pub -h localhost -p 1883 -t "test/connection" -m "test" --qos 1; then
-              echo "✅ MQTT broker connection successful"
+          # Wait for TCP port 127.0.0.1:1883 to be open
+          echo "Waiting for MQTT broker to start..."
+          for i in {1..30}; do
+            if nc -z 127.0.0.1 1883; then
+              echo "✅ MQTT broker port is open"
               break
             else
-              echo "⏳ Waiting for MQTT broker (attempt $i/5)..."
+              echo "⏳ Waiting for port 1883 (attempt $i/30)..."
               sleep 2
             fi
             
-            if [ $i -eq 5 ]; then
-              echo "❌ MQTT broker connection failed after 5 attempts"
+            if [ $i -eq 30 ]; then
+              echo "❌ MQTT broker port failed to open after 60 seconds"
               exit 1
             fi
           done
+          
+          # Test broker connectivity with QoS 0 message
+          if mosquitto_pub -h 127.0.0.1 -p 1883 -t "test/connection" -m "test" --qos 0; then
+            echo "✅ MQTT broker connection successful"
+          else
+            echo "❌ MQTT broker connection failed"
+            exit 1
+          fi
           
       # -----------------------------------------------------------------------
       # Unit Testing Execution
