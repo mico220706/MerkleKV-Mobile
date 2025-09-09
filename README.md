@@ -521,6 +521,17 @@ melos run test
 ./scripts/dev/setup.sh
 ```
 
+### Code Formatting
+
+This project enforces strict Dart formatting in CI.  
+Before committing or opening a PR, always run:
+
+```bash
+dart format .
+```
+
+If formatting is not applied, CI will fail.
+
 ## ⚡ Next Steps
 
 - Implement offline queue for operation persistence

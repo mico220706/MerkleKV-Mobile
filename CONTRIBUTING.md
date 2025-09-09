@@ -85,6 +85,18 @@ flutter test
 - Do not log secrets; use MerkleKVConfig.toString() (masked).
 - For MQTT integration tests, ensure a broker is available (CI runs Mosquitto).
 
+### Formatting Requirement
+
+All Dart code must be formatted using the official Dart formatter.  
+Run the following before pushing:
+
+```bash
+dart format .
+dart format --output=none --set-exit-if-changed .
+```
+
+PRs with unformatted code will be rejected by CI.
+
 ## 📋 Contribution Process
 
 ### 1. Issue First Approach
