@@ -109,6 +109,7 @@ Specification v1.0 compliance.
 ### Mobile Platform Tracking
 
 All changes should note their impact on:
+
 - **iOS Compatibility** - iOS-specific changes and compatibility
 - **Android Compatibility** - Android-specific changes and compatibility  
 - **React Native Bridge** - Changes affecting the React Native integration
@@ -117,6 +118,7 @@ All changes should note their impact on:
 ### Spec Compliance Tracking
 
 Every release must confirm:
+
 - **Wire Format Compatibility** - No breaking protocol changes
 - **MQTT Constraints** - QoS=1, retain=false maintained
 - **Size Limits** - Key/value/command size constraints respected
@@ -136,6 +138,7 @@ All version entries should link to the corresponding GitHub release and comparis
 ### Breaking Changes
 
 Any breaking changes must be clearly marked and include:
+
 - **Migration Guide** - Steps to upgrade existing implementations
 - **Compatibility Matrix** - Version compatibility information
 - **Deprecation Timeline** - When deprecated features will be removed
@@ -143,6 +146,7 @@ Any breaking changes must be clearly marked and include:
 ### Security Updates
 
 Security-related changes should include:
+
 - **CVE Numbers** - If applicable
 - **Severity Assessment** - Impact and urgency level
 - **Affected Versions** - Which versions are impacted

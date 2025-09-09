@@ -120,8 +120,10 @@ mosquitto_sub -h localhost -p 1883 -u test_user -P test_pass -t test/topic
    # Check if broker is running
    docker-compose ps
    ```
-   
-   # Check logs for errors
+
+## Check logs for errors
+
+   ```bash
    docker-compose logs mosquitto
    ```
 
@@ -149,7 +151,6 @@ For production use:
 
    ```bash
    ./scripts/create_users.sh
-   ```
    # Choose option 1 and set strong passwords
    ```
 
@@ -166,7 +167,6 @@ For production use:
    ```bash
    # Check broker logs
    docker-compose logs -f mosquitto
-   ```
    # Start with monitoring stack
    docker-compose --profile monitoring up -d
    ```
