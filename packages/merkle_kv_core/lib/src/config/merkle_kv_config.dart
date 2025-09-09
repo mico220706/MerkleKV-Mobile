@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'invalid_config_exception.dart';
 
 /// Centralized, immutable configuration for MerkleKV Mobile client.
@@ -146,6 +148,8 @@ class MerkleKVConfig {
   ///
   /// This method provides a static factory interface for test compatibility
   /// while maintaining all the validation and defaults of the main constructor.
+  /// Automatically provides a temporary storage path when persistence is enabled
+  /// but no storage path is specified.
   static MerkleKVConfig create({
     required String mqttHost,
     int? mqttPort,
@@ -162,6 +166,14 @@ class MerkleKVConfig {
     bool persistenceEnabled = false,
     String? storagePath,
   }) {
+    // Auto-supply temp storage path if persistence enabled but no path provided
+    String? resolvedStoragePath = storagePath;
+    if (persistenceEnabled && (storagePath == null || storagePath.isEmpty)) {
+      final dir = Directory.systemTemp.createTempSync('merkle_kv_');
+      resolvedStoragePath =
+          '${dir.path}${Platform.pathSeparator}merkle_kv_storage.jsonl';
+    }
+
     return MerkleKVConfig(
       mqttHost: mqttHost,
       mqttPort: mqttPort,
@@ -176,7 +188,7 @@ class MerkleKVConfig {
       skewMaxFutureMs: skewMaxFutureMs,
       tombstoneRetentionHours: tombstoneRetentionHours,
       persistenceEnabled: persistenceEnabled,
-      storagePath: storagePath,
+      storagePath: resolvedStoragePath,
     );
   }
 
