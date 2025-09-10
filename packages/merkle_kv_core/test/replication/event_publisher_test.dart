@@ -303,6 +303,21 @@ void main() {
 
         expect(mockClient.publishedMessages, isEmpty);
       });
+
+      test('should throw when flushing after disposal', () async {
+        await publisher.initialize();
+        await publisher.ready(); // Wait for readiness
+        await publisher.dispose();
+        
+        expect(
+          () async => await publisher.flushOutbox(),
+          throwsA(isA<StateError>().having(
+            (e) => e.message,
+            'message',
+            contains('disposed'),
+          )),
+        );
+      });
     });
 
     group('createEventFromEntry', () {
@@ -663,6 +678,65 @@ void main() {
 
       await outboxQueue.enqueue(event);
       expect(await outboxQueue.size(), equals(1));
+    });
+
+    test('should support length getter for queue size', () async {
+      await outboxQueue.initialize();
+
+      expect(await outboxQueue.length, equals(0));
+
+      final event = ReplicationEvent.value(
+        key: 'test-key',
+        nodeId: 'node1',
+        seq: 1,
+        timestampMs: 1000,
+        value: 'test-value',
+      );
+
+      await outboxQueue.enqueue(event);
+      expect(await outboxQueue.length, equals(1));
+
+      await outboxQueue.enqueue(event);
+      expect(await outboxQueue.length, equals(2));
+    });
+
+    test('should support batch acknowledgment with markBatchAcked', () async {
+      await outboxQueue.initialize();
+
+      // Enqueue multiple events
+      for (var i = 0; i < 5; i++) {
+        final event = ReplicationEvent.value(
+          key: 'key$i',
+          nodeId: 'node1',
+          seq: i + 1,
+          timestampMs: 1000 + i,
+          value: 'value$i',
+        );
+        await outboxQueue.enqueue(event);
+      }
+
+      expect(await outboxQueue.length, equals(5));
+
+      // Peek at first 3 events
+      final batch = await outboxQueue.peekBatch(3);
+      expect(batch, hasLength(3));
+      expect(batch[0].key, equals('key0'));
+      expect(batch[2].key, equals('key2'));
+
+      // Queue should still have all events
+      expect(await outboxQueue.length, equals(5));
+
+      // Mark first 3 as acknowledged
+      await outboxQueue.markBatchAcked(3);
+
+      // Should have 2 events left
+      expect(await outboxQueue.length, equals(2));
+
+      // Remaining events should be the last 2
+      final remaining = await outboxQueue.peekBatch(10);
+      expect(remaining, hasLength(2));
+      expect(remaining[0].key, equals('key3'));
+      expect(remaining[1].key, equals('key4'));
     });
 
     test('should record and return flush time', () async {
