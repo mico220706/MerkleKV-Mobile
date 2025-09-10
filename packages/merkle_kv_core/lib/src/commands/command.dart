@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import '../utils/numeric_operations.dart';
+
 /// Represents a command to be sent to MerkleKV.
 ///
 /// Commands follow the Locked Spec §3.1 format with required fields:
@@ -74,10 +76,7 @@ class Command {
 
   /// Converts Command to JSON object for serialization.
   Map<String, dynamic> toJson() {
-    final json = <String, dynamic>{
-      'id': id,
-      'op': op,
-    };
+    final json = <String, dynamic>{'id': id, 'op': op};
 
     if (key != null) json['key'] = key;
     if (keys != null) json['keys'] = keys;
@@ -189,5 +188,34 @@ class Command {
       hash ^= entry.key.hashCode ^ entry.value.hashCode;
     }
     return hash;
+  }
+
+  // Convenience factory methods
+  /// Creates an INCR command with optional amount (default 1).
+  factory Command.incr({
+    required String id,
+    required String key,
+    int amount = 1,
+  }) {
+    if (!NumericOperations.isValidAmount(amount)) {
+      throw ArgumentError(
+        'Amount must be in range [-9e15, 9e15], got: $amount',
+      );
+    }
+    return Command(id: id, op: 'INCR', key: key, amount: amount);
+  }
+
+  /// Creates a DECR command with optional amount (default 1).
+  factory Command.decr({
+    required String id,
+    required String key,
+    int amount = 1,
+  }) {
+    if (!NumericOperations.isValidAmount(amount)) {
+      throw ArgumentError(
+        'Amount must be in range [-9e15, 9e15], got: $amount',
+      );
+    }
+    return Command(id: id, op: 'DECR', key: key, amount: amount);
   }
 }

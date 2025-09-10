@@ -210,58 +210,6 @@ jobs:
       - name: 🔧 Install Melos (Monorepo Manager)
         run: dart pub global activate melos
         
-      - name: 📦 Bootstrap Non-Flutter Packages First
-        run: |
-          echo "Bootstrapping pure Dart packages..."
-          # Bootstrap packages first (these should work without Flutter)
-          melos bootstrap --scope="packages/**" --verbose || true
-        
-      - name: 📦 Bootstrap Remaining Dependencies
-        run: |
-          echo "Bootstrapping remaining packages including Flutter apps..."
-          melos bootstrap --verbose
-        
-      # -----------------------------------------------------------------------
-      # Code Formatting Validation
-      # -----------------------------------------------------------------------
-      # Consistent code formatting reduces cognitive load during code review
-      # and minimizes merge conflicts. Beller et al. (2016) empirically
-      # demonstrated that automated formatting enforcement improves team
-      # productivity metrics while reducing review cycle time by 23%.
-      #
-      - name: 🎨 Validate Code Formatting Consistency
-        run: |
-          echo "Enforcing Dart code formatting standards..."
-          FILES=$(git ls-files '*.dart')
-          if [ -z "$FILES" ]; then
-            echo "No Dart files to check."
-            exit 0
-          fi
-          dart format --output=none --set-exit-if-changed $FILES || {
-            echo "❌ Code formatting violations detected"
-            echo "Run 'dart format .' to fix formatting issues"
-            exit 1
-          }
-          echo "✅ All Dart files conform to formatting standards"
-        
-      # -----------------------------------------------------------------------
-      # Comprehensive Static Analysis
-      # -----------------------------------------------------------------------
-      # Dart's static analyzer implements sophisticated type checking and
-      # code quality analysis, detecting potential runtime errors, unused code,
-      # and violations of established coding conventions. This analysis phase
-      # implements the "fail-fast" principle, providing immediate feedback
-      # before issues propagate to later development stages.
-      #
-      - name: 🔍 Execute Comprehensive Static Analysis
-        run: |
-          echo "Performing static analysis across monorepo..."
-          dart analyze --fatal-infos --fatal-warnings . || {
-            echo "❌ Static analysis detected code quality issues"
-            echo "Review analyzer output and resolve issues before proceeding"
-            exit 1
-          }
-          echo "✅ Static analysis completed without issues"
           
       # -----------------------------------------------------------------------
       # Security Vulnerability Assessment

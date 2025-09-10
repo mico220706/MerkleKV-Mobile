@@ -288,8 +288,10 @@ class MerkleKVConfig {
       normalizedPrefix = normalizedPrefix.substring(1);
     }
     if (normalizedPrefix.endsWith('/')) {
-      normalizedPrefix =
-          normalizedPrefix.substring(0, normalizedPrefix.length - 1);
+      normalizedPrefix = normalizedPrefix.substring(
+        0,
+        normalizedPrefix.length - 1,
+      );
     }
     if (normalizedPrefix.contains(' ')) {
       throw const InvalidConfigException(
@@ -331,7 +333,8 @@ class MerkleKVConfig {
   ///
   /// Pass null to disable warnings.
   static void setSecurityWarningHandler(
-      void Function(String message)? handler) {
+    void Function(String message)? handler,
+  ) {
     _onSecurityWarning = handler;
   }
 
@@ -358,7 +361,8 @@ class MerkleKVConfig {
   }) {
     // If TLS setting changes but port is not specified, infer the port
     final newTlsSetting = mqttUseTls ?? this.mqttUseTls;
-    final newPort = mqttPort ??
+    final newPort =
+        mqttPort ??
         (mqttUseTls != null && mqttUseTls != this.mqttUseTls
             ? (newTlsSetting ? 8883 : 1883)
             : this.mqttPort);

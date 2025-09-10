@@ -3,6 +3,7 @@ import 'dart:convert';
 import '../config/merkle_kv_config.dart';
 import '../storage/storage_interface.dart';
 import '../storage/storage_entry.dart';
+import '../utils/numeric_operations.dart';
 import 'command.dart';
 import 'response.dart';
 
@@ -15,13 +16,19 @@ abstract class CommandProcessor {
   Future<Response> processCommand(Command command);
 
   /// Retrieves a value by key.
-  Future<Response> get(String key);
+  Future<Response> get(String key, String id);
 
   /// Stores a key-value pair.
-  Future<Response> set(String key, String value);
+  Future<Response> set(String key, String value, String id);
 
   /// Deletes a key (always returns OK - idempotent).
-  Future<Response> delete(String key);
+  Future<Response> delete(String key, String id);
+
+  /// Increments a numeric value by the specified amount.
+  Future<Response> increment(String key, int amount, String id);
+
+  /// Decrements a numeric value by the specified amount.
+  Future<Response> decrement(String key, int amount, String id);
 }
 
 /// Cache entry for idempotent request handling.
@@ -72,34 +79,80 @@ class CommandProcessorImpl implements CommandProcessor {
         case 'GET':
           if (command.key == null) {
             response = Response.invalidRequest(
-                command.id, 'Missing key for GET operation');
+              command.id,
+              'Missing key for GET operation',
+            );
           } else {
-            response = await get(command.key!);
+            response = await get(command.key!, command.id);
           }
           break;
         case 'SET':
           if (command.key == null) {
             response = Response.invalidRequest(
-                command.id, 'Missing key for SET operation');
+              command.id,
+              'Missing key for SET operation',
+            );
           } else if (command.value == null) {
             response = Response.invalidRequest(
-                command.id, 'Missing value for SET operation');
+              command.id,
+              'Missing value for SET operation',
+            );
           } else {
-            response = await set(command.key!, command.value.toString());
+            response = await set(command.key!, command.value.toString(), command.id);
           }
           break;
         case 'DEL':
         case 'DELETE':
           if (command.key == null) {
             response = Response.invalidRequest(
-                command.id, 'Missing key for DELETE operation');
+              command.id,
+              'Missing key for DELETE operation',
+            );
           } else {
-            response = await delete(command.key!);
+            response = await delete(command.key!, command.id);
+          }
+          break;
+        case 'INCR':
+          if (command.key == null) {
+            response = Response.invalidRequest(
+              command.id,
+              'Missing key for INCR operation',
+            );
+          } else {
+            final amount = command.amount ?? 1;
+            if (!NumericOperations.isValidAmount(amount)) {
+              response = Response.invalidRequest(
+                command.id,
+                'Amount must be in range [-9e15, 9e15], got: $amount',
+              );
+            } else {
+              response = await increment(command.key!, amount, command.id);
+            }
+          }
+          break;
+        case 'DECR':
+          if (command.key == null) {
+            response = Response.invalidRequest(
+              command.id,
+              'Missing key for DECR operation',
+            );
+          } else {
+            final amount = command.amount ?? 1;
+            if (!NumericOperations.isValidAmount(amount)) {
+              response = Response.invalidRequest(
+                command.id,
+                'Amount must be in range [-9e15, 9e15], got: $amount',
+              );
+            } else {
+              response = await decrement(command.key!, amount, command.id);
+            }
           }
           break;
         default:
           response = Response.invalidRequest(
-              command.id, 'Unsupported operation: ${command.op}');
+            command.id,
+            'Unsupported operation: ${command.op}',
+          );
       }
     } catch (e) {
       response = Response.internalError(command.id, 'Internal error: $e');
@@ -124,40 +177,36 @@ class CommandProcessorImpl implements CommandProcessor {
   }
 
   @override
-  Future<Response> get(String key) async {
-    // Validate key size
+  Future<Response> get(String key, String id) async {
     final keyBytes = utf8.encode(key);
     if (keyBytes.length > _maxKeyBytes) {
-      return Response.payloadTooLarge('');
+      return Response.payloadTooLarge(id);
     }
 
     try {
       final entry = await _storage.get(key);
       if (entry == null || entry.isTombstone) {
-        return Response.notFound('');
+        return Response.notFound(id);
       }
-      return Response.ok(id: '', value: entry.value);
+      return Response.ok(id: id, value: entry.value);
     } catch (e) {
-      return Response.internalError('', 'Storage error: $e');
+      return Response.internalError(id, 'Storage error: $e');
     }
   }
 
   @override
-  Future<Response> set(String key, String value) async {
-    // Validate key size
+  Future<Response> set(String key, String value, String id) async {
     final keyBytes = utf8.encode(key);
     if (keyBytes.length > _maxKeyBytes) {
-      return Response.payloadTooLarge('');
+      return Response.payloadTooLarge(id);
     }
 
-    // Validate value size
     final valueBytes = utf8.encode(value);
     if (valueBytes.length > _maxValueBytes) {
-      return Response.payloadTooLarge('');
+      return Response.payloadTooLarge(id);
     }
 
     try {
-      // Generate version vector
       final timestampMs = DateTime.now().millisecondsSinceEpoch;
       final seq = _nextSequenceNumber();
 
@@ -170,50 +219,109 @@ class CommandProcessorImpl implements CommandProcessor {
       );
 
       await _storage.put(key, entry);
-      return Response.ok(id: '');
+      return Response.ok(id: id);
     } catch (e) {
-      return Response.internalError('', 'Storage error: $e');
+      return Response.internalError(id, 'Storage error: $e');
     }
   }
 
   @override
-  Future<Response> delete(String key) async {
-    // Validate key size
+  Future<Response> delete(String key, String id) async {
     final keyBytes = utf8.encode(key);
     if (keyBytes.length > _maxKeyBytes) {
-      return Response.payloadTooLarge('');
+      return Response.payloadTooLarge(id);
     }
 
     try {
-      // Generate version vector for tombstone
       final timestampMs = DateTime.now().millisecondsSinceEpoch;
       final seq = _nextSequenceNumber();
 
       await _storage.delete(key, timestampMs, _config.nodeId, seq);
-      return Response.ok(id: '');
+      return Response.ok(id: id);
     } catch (e) {
-      return Response.internalError('', 'Storage error: $e');
+      return Response.internalError(id, 'Storage error: $e');
     }
   }
 
-  /// Gets next sequence number in a thread-safe manner.
+  @override
+  Future<Response> increment(String key, int amount, String id) async {
+    return await _performNumericOperation(key, amount, true, id);
+  }
+
+  @override
+  Future<Response> decrement(String key, int amount, String id) async {
+    return await _performNumericOperation(key, amount, false, id);
+  }
+
+  Future<Response> _performNumericOperation(
+    String key,
+    int amount,
+    bool isIncrement,
+    String id,
+  ) async {
+    try {
+      final keyBytes = utf8.encode(key);
+      if (keyBytes.length > _maxKeyBytes) {
+        return Response.payloadTooLarge(id);
+      }
+
+      final current = await _storage.get(key);
+      int currentInt = 0;
+
+      if (current != null && !current.isTombstone) {
+        final parsed = NumericOperations.parseInteger(current.value);
+        if (parsed == null) {
+          return Response.invalidType(
+            id,
+            'Value is not a valid integer: ${current.value}',
+          );
+        }
+        currentInt = parsed;
+      }
+
+      final int newValue;
+      try {
+        if (isIncrement) {
+          newValue = NumericOperations.safeIncrement(currentInt, amount);
+        } else {
+          newValue = NumericOperations.safeDecrement(currentInt, amount);
+        }
+      } on NumericOverflowException catch (e) {
+        return Response.rangeOverflow(id, e.message);
+      }
+
+      final canonicalValue = NumericOperations.formatCanonical(newValue);
+
+      final entry = StorageEntry.value(
+        key: key,
+        value: canonicalValue,
+        timestampMs: DateTime.now().millisecondsSinceEpoch,
+        nodeId: _config.nodeId,
+        seq: _nextSequenceNumber(),
+      );
+
+      await _storage.put(key, entry);
+
+      return Response.ok(id: id, value: canonicalValue);
+    } catch (e) {
+      return Response.internalError(id, 'Numeric operation failed: $e');
+    }
+  }
+
   int _nextSequenceNumber() {
     return ++_sequenceNumber;
   }
 
-  /// Retrieves cached response if available and not expired.
   Response? _getCachedResponse(String requestId) {
     _cleanupExpiredEntries();
 
     final entry = _idempotencyCache[requestId];
     if (entry != null && !entry.isExpired) {
-      // Move to end of access order (LRU)
       _cacheAccessOrder.remove(requestId);
       _cacheAccessOrder.add(requestId);
       return entry.response;
     }
 
-    // Remove expired entry
     if (entry != null) {
       _idempotencyCache.remove(requestId);
       _cacheAccessOrder.remove(requestId);
@@ -222,23 +330,19 @@ class CommandProcessorImpl implements CommandProcessor {
     return null;
   }
 
-  /// Caches a response with TTL and LRU eviction.
   void _cacheResponse(String requestId, Response response) {
     final expiry = DateTime.now().add(_cacheTimeout);
     _idempotencyCache[requestId] = _CacheEntry(response, expiry);
 
-    // Update access order
     _cacheAccessOrder.remove(requestId);
     _cacheAccessOrder.add(requestId);
 
-    // Enforce cache size limit with LRU eviction
     while (_idempotencyCache.length > _maxCacheSize) {
       final oldestKey = _cacheAccessOrder.removeAt(0);
       _idempotencyCache.remove(oldestKey);
     }
   }
 
-  /// Removes expired cache entries.
   void _cleanupExpiredEntries() {
     final now = DateTime.now();
     final expiredKeys = <String>[];

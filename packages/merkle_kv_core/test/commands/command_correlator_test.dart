@@ -29,14 +29,20 @@ void main() {
     });
 
     test('validates UUID format correctly', () {
-      expect(UuidGenerator.isValidUuid('550e8400-e29b-41d4-a716-446655440000'),
-          isTrue);
-      expect(UuidGenerator.isValidUuid('6ba7b810-9dad-11d1-80b4-00c04fd430c8'),
-          isFalse); // Wrong version
+      expect(
+        UuidGenerator.isValidUuid('550e8400-e29b-41d4-a716-446655440000'),
+        isTrue,
+      );
+      expect(
+        UuidGenerator.isValidUuid('6ba7b810-9dad-11d1-80b4-00c04fd430c8'),
+        isFalse,
+      ); // Wrong version
       expect(UuidGenerator.isValidUuid('invalid-uuid'), isFalse);
       expect(UuidGenerator.isValidUuid(''), isFalse);
-      expect(UuidGenerator.isValidUuid('550e8400-e29b-41d4-a716-44665544000'),
-          isFalse); // Wrong length
+      expect(
+        UuidGenerator.isValidUuid('550e8400-e29b-41d4-a716-44665544000'),
+        isFalse,
+      ); // Wrong length
     });
 
     test('validates ID length correctly', () {
@@ -49,11 +55,7 @@ void main() {
 
   group('Command', () {
     test('creates command from valid JSON', () {
-      final json = {
-        'id': 'test-123',
-        'op': 'GET',
-        'key': 'test-key',
-      };
+      final json = {'id': 'test-123', 'op': 'GET', 'key': 'test-key'};
 
       final command = Command.fromJson(json);
       expect(command.id, equals('test-123'));
@@ -63,10 +65,14 @@ void main() {
 
     test('throws on missing required fields', () {
       expect(() => Command.fromJson({}), throwsA(isA<FormatException>()));
-      expect(() => Command.fromJson({'id': 'test'}),
-          throwsA(isA<FormatException>()));
-      expect(() => Command.fromJson({'op': 'GET'}),
-          throwsA(isA<FormatException>()));
+      expect(
+        () => Command.fromJson({'id': 'test'}),
+        throwsA(isA<FormatException>()),
+      );
+      expect(
+        () => Command.fromJson({'op': 'GET'}),
+        throwsA(isA<FormatException>()),
+      );
     });
 
     test('serializes to JSON correctly', () {
@@ -96,9 +102,13 @@ void main() {
     test('returns correct timeout durations', () {
       expect(Command(id: '1', op: 'GET').expectedTimeout.inSeconds, equals(10));
       expect(
-          Command(id: '1', op: 'MGET').expectedTimeout.inSeconds, equals(20));
+        Command(id: '1', op: 'MGET').expectedTimeout.inSeconds,
+        equals(20),
+      );
       expect(
-          Command(id: '1', op: 'SYNC').expectedTimeout.inSeconds, equals(30));
+        Command(id: '1', op: 'SYNC').expectedTimeout.inSeconds,
+        equals(30),
+      );
     });
 
     test('handles JSON string parsing', () {
@@ -107,8 +117,10 @@ void main() {
       expect(command.id, equals('test'));
       expect(command.op, equals('GET'));
 
-      expect(() => Command.fromJsonString('invalid json'),
-          throwsA(isA<FormatException>()));
+      expect(
+        () => Command.fromJsonString('invalid json'),
+        throwsA(isA<FormatException>()),
+      );
     });
   });
 
@@ -150,11 +162,7 @@ void main() {
     });
 
     test('parses from JSON correctly', () {
-      final json = {
-        'id': 'test-123',
-        'status': 'OK',
-        'value': 'result',
-      };
+      final json = {'id': 'test-123', 'status': 'OK', 'value': 'result'};
 
       final response = Response.fromJson(json);
       expect(response.id, equals('test-123'));
@@ -163,15 +171,20 @@ void main() {
     });
 
     test('handles JSON string parsing', () {
-      final jsonString =
-          jsonEncode({'id': 'test', 'status': 'ERROR', 'error': 'Test error'});
+      final jsonString = jsonEncode({
+        'id': 'test',
+        'status': 'ERROR',
+        'error': 'Test error',
+      });
       final response = Response.fromJsonString(jsonString);
       expect(response.id, equals('test'));
       expect(response.status, equals(ResponseStatus.error));
       expect(response.error, equals('Test error'));
 
-      expect(() => Response.fromJsonString('invalid json'),
-          throwsA(isA<FormatException>()));
+      expect(
+        () => Response.fromJsonString('invalid json'),
+        throwsA(isA<FormatException>()),
+      );
     });
   });
 
@@ -210,7 +223,8 @@ void main() {
 
       // Complete the request to avoid timeout
       correlator.onResponse(
-          Response.ok(id: publishedCommand.id, value: 'result').toJsonString());
+        Response.ok(id: publishedCommand.id, value: 'result').toJsonString(),
+      );
       final response = await responseFuture;
       expect(response.isSuccess, isTrue);
     });
@@ -222,7 +236,8 @@ void main() {
 
       // Complete the request
       correlator.onResponse(
-          Response.ok(id: validCommand.id, value: 'result').toJsonString());
+        Response.ok(id: validCommand.id, value: 'result').toJsonString(),
+      );
 
       // Invalid length - too long
       final longCommand = Command(id: 'a' * 65, op: 'GET', key: 'test');
@@ -242,19 +257,27 @@ void main() {
 
       // Complete the request
       correlator.onResponse(
-          Response.ok(id: validUuid, value: 'result').toJsonString());
+        Response.ok(id: validUuid, value: 'result').toJsonString(),
+      );
 
       // Invalid UUIDv4 format
       final invalidCommand = Command(
-          id: '550e8400-e29b-11d1-80b4-00c04fd430c8', op: 'GET', key: 'test');
+        id: '550e8400-e29b-11d1-80b4-00c04fd430c8',
+        op: 'GET',
+        key: 'test',
+      );
       expect(() => correlator.send(invalidCommand), throwsArgumentError);
     });
 
     test('handles payload size validation', () async {
       // Create command with large payload
       final largeValue = 'x' * (600 * 1024); // 600 KiB
-      final command =
-          Command(id: 'test-123', op: 'SET', key: 'test', value: largeValue);
+      final command = Command(
+        id: 'test-123',
+        op: 'SET',
+        key: 'test',
+        value: largeValue,
+      );
 
       final response = await correlator.send(command);
       expect(response.errorCode, equals(ErrorCode.payloadTooLarge));
@@ -271,10 +294,12 @@ void main() {
       expect(correlator.pendingRequestCount, equals(2));
 
       // Send responses in reverse order
-      correlator
-          .onResponse(Response.ok(id: 'req-2', value: 'value2').toJsonString());
-      correlator
-          .onResponse(Response.ok(id: 'req-1', value: 'value1').toJsonString());
+      correlator.onResponse(
+        Response.ok(id: 'req-2', value: 'value2').toJsonString(),
+      );
+      correlator.onResponse(
+        Response.ok(id: 'req-1', value: 'value1').toJsonString(),
+      );
 
       final response1 = await future1;
       final response2 = await future2;
@@ -312,7 +337,8 @@ void main() {
       // First request
       final future1 = correlator.send(command);
       correlator.onResponse(
-          Response.ok(id: 'dedup-test', value: 'cached-value').toJsonString());
+        Response.ok(id: 'dedup-test', value: 'cached-value').toJsonString(),
+      );
       final response1 = await future1;
       expect(response1.value, equals('cached-value'));
 
@@ -334,7 +360,8 @@ void main() {
 
       // Send response after timeout - should be cached but not complete future
       correlator.onResponse(
-          Response.ok(id: 'late-test', value: 'late-value').toJsonString());
+        Response.ok(id: 'late-test', value: 'late-value').toJsonString(),
+      );
 
       // Second request should get cached response
       final response2 = await correlator.send(command);
@@ -344,11 +371,14 @@ void main() {
 
     test('handles malformed responses gracefully', () {
       expect(() => correlator.onResponse('invalid json'), returnsNormally);
-      expect(() => correlator.onResponse('{"invalid": "response"}'),
-          returnsNormally);
       expect(
-          logEntries.any((entry) => entry['phase'] == 'response_parse_error'),
-          isTrue);
+        () => correlator.onResponse('{"invalid": "response"}'),
+        returnsNormally,
+      );
+      expect(
+        logEntries.any((entry) => entry['phase'] == 'response_parse_error'),
+        isTrue,
+      );
     });
 
     test('implements LRU cache eviction', () async {
@@ -362,7 +392,8 @@ void main() {
         final command = Command(id: 'cache-test-$i', op: 'GET', key: 'test');
         final future = testCorrelator.send(command);
         testCorrelator.onResponse(
-            Response.ok(id: 'cache-test-$i', value: 'value-$i').toJsonString());
+          Response.ok(id: 'cache-test-$i', value: 'value-$i').toJsonString(),
+        );
         await future;
       }
 
@@ -377,7 +408,8 @@ void main() {
 
       final future = correlator.send(command);
       correlator.onResponse(
-          Response.ok(id: 'log-test', value: 'result').toJsonString());
+        Response.ok(id: 'log-test', value: 'result').toJsonString(),
+      );
       await future;
 
       // Check for expected log phases
@@ -387,8 +419,9 @@ void main() {
       expect(phases, contains('response_received'));
 
       // Verify log structure
-      final startEntry =
-          logEntries.firstWhere((entry) => entry['phase'] == 'request_start');
+      final startEntry = logEntries.firstWhere(
+        (entry) => entry['phase'] == 'request_start',
+      );
       expect(startEntry['request_id'], equals('log-test'));
       expect(startEntry['op'], equals('GET'));
       expect(startEntry['size_bytes'], isA<int>());
@@ -408,7 +441,8 @@ void main() {
 
       // Complete the request
       correlator.onResponse(
-          Response.ok(id: 'duplicate-test', value: 'result').toJsonString());
+        Response.ok(id: 'duplicate-test', value: 'result').toJsonString(),
+      );
 
       final response1 = await future1;
       final response2 = await future2;
@@ -449,13 +483,19 @@ void main() {
 
   group('ErrorCode', () {
     test('provides correct error descriptions', () {
-      expect(ErrorCode.describe(ErrorCode.invalidRequest),
-          contains('Invalid request'));
+      expect(
+        ErrorCode.describe(ErrorCode.invalidRequest),
+        contains('Invalid request'),
+      );
       expect(ErrorCode.describe(ErrorCode.timeout), contains('timeout'));
-      expect(ErrorCode.describe(ErrorCode.idempotentReplay),
-          contains('Idempotent replay'));
-      expect(ErrorCode.describe(ErrorCode.payloadTooLarge),
-          contains('Payload exceeds'));
+      expect(
+        ErrorCode.describe(ErrorCode.idempotentReplay),
+        contains('Idempotent replay'),
+      );
+      expect(
+        ErrorCode.describe(ErrorCode.payloadTooLarge),
+        contains('Payload exceeds'),
+      );
       expect(ErrorCode.describe(ErrorCode.internalError), contains('Internal'));
       expect(ErrorCode.describe(999), contains('Unknown error'));
     });

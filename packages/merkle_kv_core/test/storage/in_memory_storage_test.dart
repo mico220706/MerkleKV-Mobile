@@ -37,10 +37,7 @@ void main() {
       });
 
       test('throws StateError when not initialized', () async {
-        expect(
-          () => storage.get('key'),
-          throwsA(isA<StateError>()),
-        );
+        expect(() => storage.get('key'), throwsA(isA<StateError>()));
       });
     });
 
@@ -105,8 +102,9 @@ void main() {
 
         // But should appear in getAllEntries as tombstone
         final allEntries = await storage.getAllEntries();
-        final tombstone =
-            allEntries.firstWhere((e) => e.key == 'key-to-delete');
+        final tombstone = allEntries.firstWhere(
+          (e) => e.key == 'key-to-delete',
+        );
         expect(tombstone.isTombstone, isTrue);
         expect(tombstone.timestampMs, equals(2000));
       });
@@ -257,11 +255,13 @@ void main() {
 
         expect(
           () => storage.put(longKey, entry),
-          throwsA(isA<ArgumentError>().having(
-            (e) => e.message,
-            'message',
-            contains('Key exceeds maximum size'),
-          )),
+          throwsA(
+            isA<ArgumentError>().having(
+              (e) => e.message,
+              'message',
+              contains('Key exceeds maximum size'),
+            ),
+          ),
         );
       });
 
@@ -302,11 +302,13 @@ void main() {
 
         expect(
           () => storage.put('key', entry),
-          throwsA(isA<ArgumentError>().having(
-            (e) => e.message,
-            'message',
-            contains('Value exceeds maximum size'),
-          )),
+          throwsA(
+            isA<ArgumentError>().having(
+              (e) => e.message,
+              'message',
+              contains('Value exceeds maximum size'),
+            ),
+          ),
         );
       });
 
@@ -443,12 +445,15 @@ void main() {
 
         expect(
           () => storage.put('different-key', entry),
-          throwsA(isA<ArgumentError>().having(
-            (e) => e.message,
-            'message',
-            contains(
-                'Entry key "entry-key" does not match provided key "different-key"'),
-          )),
+          throwsA(
+            isA<ArgumentError>().having(
+              (e) => e.message,
+              'message',
+              contains(
+                'Entry key "entry-key" does not match provided key "different-key"',
+              ),
+            ),
+          ),
         );
       });
     });
@@ -521,8 +526,9 @@ void main() {
 
           // But tombstone should exist in getAllEntries
           final allEntries = await newStorage.getAllEntries();
-          final tombstone =
-              allEntries.firstWhere((e) => e.key == 'persistent-key-2');
+          final tombstone = allEntries.firstWhere(
+            (e) => e.key == 'persistent-key-2',
+          );
           expect(tombstone.isTombstone, isTrue);
         } finally {
           await newStorage.dispose();

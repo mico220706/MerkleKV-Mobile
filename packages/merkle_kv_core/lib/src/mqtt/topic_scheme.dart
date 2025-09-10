@@ -12,10 +12,7 @@ class TopicScheme {
   final String clientId;
 
   /// Creates a TopicScheme with validated and normalized values.
-  const TopicScheme._({
-    required this.prefix,
-    required this.clientId,
-  });
+  const TopicScheme._({required this.prefix, required this.clientId});
 
   /// Command topic for this client: `{prefix}/{clientId}/cmd`
   String get commandTopic => '$prefix/$clientId/cmd';
@@ -42,10 +39,7 @@ class TopicScheme {
     // Validate clientId
     validateClientId(rawClientId);
 
-    return TopicScheme._(
-      prefix: normalizedPrefix,
-      clientId: rawClientId,
-    );
+    return TopicScheme._(prefix: normalizedPrefix, clientId: rawClientId);
   }
 
   /// Normalizes prefix by trimming and removing leading/trailing slashes.

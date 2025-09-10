@@ -61,7 +61,8 @@ class InMemoryStorage implements StorageInterface {
     // Ensure the entry's key matches the provided key
     if (entry.key != key) {
       throw ArgumentError(
-          'Entry key "${entry.key}" does not match provided key "$key"');
+        'Entry key "${entry.key}" does not match provided key "$key"',
+      );
     }
 
     // Apply Last-Write-Wins conflict resolution
@@ -88,7 +89,11 @@ class InMemoryStorage implements StorageInterface {
 
   @override
   Future<void> delete(
-      String key, int timestampMs, String nodeId, int seq) async {
+    String key,
+    int timestampMs,
+    String nodeId,
+    int seq,
+  ) async {
     _ensureInitialized();
 
     // Create tombstone entry
@@ -156,7 +161,8 @@ class InMemoryStorage implements StorageInterface {
     final keyBytes = utf8.encode(key);
     if (keyBytes.length > _maxKeyBytes) {
       throw ArgumentError(
-          'Key exceeds maximum size: ${keyBytes.length} bytes > $_maxKeyBytes bytes UTF-8');
+        'Key exceeds maximum size: ${keyBytes.length} bytes > $_maxKeyBytes bytes UTF-8',
+      );
     }
 
     // Validate value size (if not null)
@@ -164,7 +170,8 @@ class InMemoryStorage implements StorageInterface {
       final valueBytes = utf8.encode(value);
       if (valueBytes.length > _maxValueBytes) {
         throw ArgumentError(
-            'Value exceeds maximum size: ${valueBytes.length} bytes > $_maxValueBytes bytes UTF-8');
+          'Value exceeds maximum size: ${valueBytes.length} bytes > $_maxValueBytes bytes UTF-8',
+        );
       }
     }
   }
@@ -180,7 +187,8 @@ class InMemoryStorage implements StorageInterface {
   Future<void> _initializePersistence() async {
     if (_config.storagePath == null) {
       throw StateError(
-          'Storage path must be provided when persistence is enabled');
+        'Storage path must be provided when persistence is enabled',
+      );
     }
 
     _persistenceFile = File(_config.storagePath!);
@@ -236,7 +244,8 @@ class InMemoryStorage implements StorageInterface {
       // In production, this would use a proper logging framework
       // ignore: avoid_print
       print(
-          'Storage recovery: loaded $loadedCount entries, skipped $skippedCount corrupted records');
+        'Storage recovery: loaded $loadedCount entries, skipped $skippedCount corrupted records',
+      );
     }
   }
 
@@ -259,10 +268,7 @@ class InMemoryStorage implements StorageInterface {
     // Calculate SHA-256 checksum for integrity
     final checksum = sha256.convert(utf8.encode(entryString)).toString();
 
-    final record = {
-      'entry': entryJson,
-      'checksum': checksum,
-    };
+    final record = {'entry': entryJson, 'checksum': checksum};
 
     return jsonEncode(record);
   }
@@ -276,8 +282,9 @@ class InMemoryStorage implements StorageInterface {
 
     // Verify integrity checksum
     final entryString = jsonEncode(entryJson);
-    final calculatedChecksum =
-        sha256.convert(utf8.encode(entryString)).toString();
+    final calculatedChecksum = sha256
+        .convert(utf8.encode(entryString))
+        .toString();
 
     if (storedChecksum != calculatedChecksum) {
       throw Exception('Checksum mismatch - record corrupted');
@@ -285,9 +292,7 @@ class InMemoryStorage implements StorageInterface {
 
     final entry = StorageEntry.fromJson(entryJson);
 
-    return {
-      'entry': entry,
-    };
+    return {'entry': entry};
   }
 
   /// Rewrites the entire persistence file to compact storage.

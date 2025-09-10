@@ -10,8 +10,10 @@ void main() {
 
         expect(scheme.commandTopic, equals('prod/cluster-a/device-123/cmd'));
         expect(scheme.responseTopic, equals('prod/cluster-a/device-123/res'));
-        expect(scheme.replicationTopic,
-            equals('prod/cluster-a/replication/events'));
+        expect(
+          scheme.replicationTopic,
+          equals('prod/cluster-a/replication/events'),
+        );
       });
 
       test('generates correct topics with simple prefix', () {
@@ -24,14 +26,22 @@ void main() {
 
       test('generates correct topics with complex prefix', () {
         final scheme = TopicScheme.create(
-            'enterprise/region-us-east/env-prod', 'sensor-abc123');
+          'enterprise/region-us-east/env-prod',
+          'sensor-abc123',
+        );
 
-        expect(scheme.commandTopic,
-            equals('enterprise/region-us-east/env-prod/sensor-abc123/cmd'));
-        expect(scheme.responseTopic,
-            equals('enterprise/region-us-east/env-prod/sensor-abc123/res'));
-        expect(scheme.replicationTopic,
-            equals('enterprise/region-us-east/env-prod/replication/events'));
+        expect(
+          scheme.commandTopic,
+          equals('enterprise/region-us-east/env-prod/sensor-abc123/cmd'),
+        );
+        expect(
+          scheme.responseTopic,
+          equals('enterprise/region-us-east/env-prod/sensor-abc123/res'),
+        );
+        expect(
+          scheme.replicationTopic,
+          equals('enterprise/region-us-east/env-prod/replication/events'),
+        );
       });
     });
 
@@ -74,8 +84,11 @@ void main() {
           throwsA(
             isA<InvalidConfigException>()
                 .having((e) => e.parameter, 'parameter', 'prefix')
-                .having((e) => e.message, 'message',
-                    contains('wildcard character \'+\'')),
+                .having(
+                  (e) => e.message,
+                  'message',
+                  contains('wildcard character \'+\''),
+                ),
           ),
         );
       });
@@ -86,8 +99,11 @@ void main() {
           throwsA(
             isA<InvalidConfigException>()
                 .having((e) => e.parameter, 'parameter', 'prefix')
-                .having((e) => e.message, 'message',
-                    contains('wildcard character \'#\'')),
+                .having(
+                  (e) => e.message,
+                  'message',
+                  contains('wildcard character \'#\''),
+                ),
           ),
         );
       });
@@ -99,15 +115,20 @@ void main() {
           throwsA(
             isA<InvalidConfigException>()
                 .having((e) => e.parameter, 'parameter', 'prefix')
-                .having((e) => e.message, 'message',
-                    contains('cannot exceed 100 characters')),
+                .having(
+                  (e) => e.message,
+                  'message',
+                  contains('cannot exceed 100 characters'),
+                ),
           ),
         );
       });
 
       test('accepts prefix with allowed characters', () {
-        final scheme =
-            TopicScheme.create('Test_Prefix-123/sub-topic', 'client-1');
+        final scheme = TopicScheme.create(
+          'Test_Prefix-123/sub-topic',
+          'client-1',
+        );
         expect(scheme.prefix, equals('Test_Prefix-123/sub-topic'));
       });
 
@@ -117,8 +138,11 @@ void main() {
           throwsA(
             isA<InvalidConfigException>()
                 .having((e) => e.parameter, 'parameter', 'prefix')
-                .having((e) => e.message, 'message',
-                    contains('invalid characters')),
+                .having(
+                  (e) => e.message,
+                  'message',
+                  contains('invalid characters'),
+                ),
           ),
         );
       });
@@ -138,7 +162,10 @@ void main() {
             isA<InvalidConfigException>()
                 .having((e) => e.parameter, 'parameter', 'clientId')
                 .having(
-                    (e) => e.message, 'message', contains('cannot be empty')),
+                  (e) => e.message,
+                  'message',
+                  contains('cannot be empty'),
+                ),
           ),
         );
       });
@@ -150,8 +177,11 @@ void main() {
           throwsA(
             isA<InvalidConfigException>()
                 .having((e) => e.parameter, 'parameter', 'clientId')
-                .having((e) => e.message, 'message',
-                    contains('cannot exceed 128 characters')),
+                .having(
+                  (e) => e.message,
+                  'message',
+                  contains('cannot exceed 128 characters'),
+                ),
           ),
         );
       });
@@ -168,8 +198,11 @@ void main() {
           throwsA(
             isA<InvalidConfigException>()
                 .having((e) => e.parameter, 'parameter', 'clientId')
-                .having((e) => e.message, 'message',
-                    contains('cannot contain \'/\' character')),
+                .having(
+                  (e) => e.message,
+                  'message',
+                  contains('cannot contain \'/\' character'),
+                ),
           ),
         );
       });
@@ -180,8 +213,11 @@ void main() {
           throwsA(
             isA<InvalidConfigException>()
                 .having((e) => e.parameter, 'parameter', 'clientId')
-                .having((e) => e.message, 'message',
-                    contains('wildcard character \'+\'')),
+                .having(
+                  (e) => e.message,
+                  'message',
+                  contains('wildcard character \'+\''),
+                ),
           ),
         );
       });
@@ -192,8 +228,11 @@ void main() {
           throwsA(
             isA<InvalidConfigException>()
                 .having((e) => e.parameter, 'parameter', 'clientId')
-                .having((e) => e.message, 'message',
-                    contains('wildcard character \'#\'')),
+                .having(
+                  (e) => e.message,
+                  'message',
+                  contains('wildcard character \'#\''),
+                ),
           ),
         );
       });
@@ -251,8 +290,10 @@ void main() {
 
         expect(scheme.commandTopic, equals('test_prefix-1/client_id-2/cmd'));
         expect(scheme.responseTopic, equals('test_prefix-1/client_id-2/res'));
-        expect(scheme.replicationTopic,
-            equals('test_prefix-1/replication/events'));
+        expect(
+          scheme.replicationTopic,
+          equals('test_prefix-1/replication/events'),
+        );
       });
     });
   });

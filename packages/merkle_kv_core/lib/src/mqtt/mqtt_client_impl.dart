@@ -221,7 +221,9 @@ class MqttClientImpl implements MqttClientInterface {
 
   @override
   Future<void> subscribe(
-      String topic, void Function(String, String) handler) async {
+    String topic,
+    void Function(String, String) handler,
+  ) async {
     _subscriptions[topic] = handler;
 
     if (_currentState == ConnectionState.connected) {
@@ -232,7 +234,8 @@ class MqttClientImpl implements MqttClientInterface {
         // Use a proper logging framework in production
         // ignore: avoid_print
         print(
-            'Warning: Broker downgraded subscription to QoS 0 for topic: $topic');
+          'Warning: Broker downgraded subscription to QoS 0 for topic: $topic',
+        );
       }
     }
   }
@@ -284,8 +287,9 @@ class MqttClientImpl implements MqttClientInterface {
     for (final receivedMessage in messages) {
       final topic = receivedMessage.topic;
       final message = receivedMessage.payload as MqttPublishMessage;
-      final payload =
-          MqttPublishPayload.bytesToStringAsString(message.payload.message);
+      final payload = MqttPublishPayload.bytesToStringAsString(
+        message.payload.message,
+      );
 
       final handler = _subscriptions[topic];
       if (handler != null) {
