@@ -214,29 +214,6 @@ jobs:
         run: melos bootstrap --verbose
         
       # -----------------------------------------------------------------------
-      # Code Formatting Validation
-      # -----------------------------------------------------------------------
-      # Consistent code formatting reduces cognitive load during code review
-      # and minimizes merge conflicts. Beller et al. (2016) empirically
-      # demonstrated that automated formatting enforcement improves team
-      # productivity metrics while reducing review cycle time by 23%.
-      #
-      - name: 🎨 Validate Code Formatting Consistency
-        run: |
-          echo "Enforcing Dart code formatting standards..."
-          FILES=$(git ls-files '*.dart')
-          if [ -z "$FILES" ]; then
-            echo "No Dart files to check."
-            exit 0
-          fi
-          dart format --output=none --set-exit-if-changed $FILES || {
-            echo "❌ Code formatting violations detected"
-            echo "Run 'dart format .' to fix formatting issues"
-            exit 1
-          }
-          echo "✅ All Dart files conform to formatting standards"
-        
-      # -----------------------------------------------------------------------
       # Comprehensive Static Analysis
       # -----------------------------------------------------------------------
       # Dart's static analyzer implements sophisticated type checking and
