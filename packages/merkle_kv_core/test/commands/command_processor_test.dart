@@ -26,7 +26,11 @@ class MockStorage implements StorageInterface {
 
   @override
   Future<void> delete(
-      String key, int timestampMs, String nodeId, int seq) async {
+    String key,
+    int timestampMs,
+    String nodeId,
+    int seq,
+  ) async {
     final tombstone = StorageEntry.tombstone(
       key: key,
       timestampMs: timestampMs,
@@ -165,8 +169,10 @@ void main() {
         final response = await processor.get(exactKey);
 
         expect(response.status, equals(ResponseStatus.error));
-        expect(response.errorCode,
-            equals(ErrorCode.notFound)); // Key doesn't exist, but size is valid
+        expect(
+          response.errorCode,
+          equals(ErrorCode.notFound),
+        ); // Key doesn't exist, but size is valid
       });
     });
 
@@ -303,9 +309,14 @@ void main() {
 
     group('INCR/DECR operations', () {
       test('INCR on absent key defaults to 0', () async {
-        final command = Command(id: 'req-1', op: 'INCR', key: 'counter', amount: 5);
+        final command = Command(
+          id: 'req-1',
+          op: 'INCR',
+          key: 'counter',
+          amount: 5,
+        );
         final response = await processor.processCommand(command);
-        
+
         expect(response.status, equals(ResponseStatus.ok));
         expect(response.value, equals('5'));
       });
@@ -313,10 +324,15 @@ void main() {
       test('INCR on existing numeric value', () async {
         // Set initial value
         await processor.set('counter', '10');
-        
-        final command = Command(id: 'req-1', op: 'INCR', key: 'counter', amount: 3);
+
+        final command = Command(
+          id: 'req-1',
+          op: 'INCR',
+          key: 'counter',
+          amount: 3,
+        );
         final response = await processor.processCommand(command);
-        
+
         expect(response.status, equals(ResponseStatus.ok));
         expect(response.value, equals('13'));
       });
@@ -324,10 +340,10 @@ void main() {
       test('INCR on non-integer value returns INVALID_TYPE', () async {
         // Set non-integer value
         await processor.set('key', 'not_a_number');
-        
+
         final command = Command(id: 'req-1', op: 'INCR', key: 'key', amount: 1);
         final response = await processor.processCommand(command);
-        
+
         expect(response.status, equals(ResponseStatus.error));
         expect(response.errorCode, equals(ErrorCode.invalidType));
       });
@@ -335,10 +351,15 @@ void main() {
       test('DECR with negative amount effectively increments', () async {
         // Set initial value
         await processor.set('counter', '10');
-        
-        final command = Command(id: 'req-1', op: 'DECR', key: 'counter', amount: -5);
+
+        final command = Command(
+          id: 'req-1',
+          op: 'DECR',
+          key: 'counter',
+          amount: -5,
+        );
         final response = await processor.processCommand(command);
-        
+
         expect(response.status, equals(ResponseStatus.ok));
         expect(response.value, equals('15'));
       });
@@ -346,10 +367,10 @@ void main() {
       test('handles leading zeros correctly', () async {
         // Set value with leading zeros
         await processor.set('key', '0000123');
-        
+
         final command = Command(id: 'req-1', op: 'INCR', key: 'key', amount: 1);
         final response = await processor.processCommand(command);
-        
+
         expect(response.status, equals(ResponseStatus.ok));
         expect(response.value, equals('124'));
       });
@@ -359,14 +380,15 @@ void main() {
       test('handles GET command', () async {
         // Setup
         storage.setEntry(
-            'test-key',
-            StorageEntry.value(
-              key: 'test-key',
-              value: 'test-value',
-              timestampMs: DateTime.now().millisecondsSinceEpoch,
-              nodeId: 'node1',
-              seq: 1,
-            ));
+          'test-key',
+          StorageEntry.value(
+            key: 'test-key',
+            value: 'test-value',
+            timestampMs: DateTime.now().millisecondsSinceEpoch,
+            nodeId: 'node1',
+            seq: 1,
+          ),
+        );
 
         final command = const Command(
           id: 'req-123',
@@ -442,10 +464,7 @@ void main() {
       });
 
       test('returns INVALID_REQUEST for missing key in GET', () async {
-        final command = const Command(
-          id: 'req-nokey',
-          op: 'GET',
-        );
+        final command = const Command(id: 'req-nokey', op: 'GET');
 
         final response = await processor.processCommand(command);
 
@@ -507,14 +526,15 @@ void main() {
 
         // Add the key to storage
         storage.setEntry(
-            'missing-key',
-            StorageEntry.value(
-              key: 'missing-key',
-              value: 'now-exists',
-              timestampMs: DateTime.now().millisecondsSinceEpoch,
-              nodeId: 'node1',
-              seq: 1,
-            ));
+          'missing-key',
+          StorageEntry.value(
+            key: 'missing-key',
+            value: 'now-exists',
+            timestampMs: DateTime.now().millisecondsSinceEpoch,
+            nodeId: 'node1',
+            seq: 1,
+          ),
+        );
 
         // Second request should return success (not cached error)
         final response2 = await processor.processCommand(command);

@@ -150,8 +150,10 @@ Future<void> main() async {
   try {
     // Example operations with automatic correlation
     print('Setting value...');
-    final setResponse =
-        await client.set('user:123', {'name': 'Alice', 'age': 30});
+    final setResponse = await client.set('user:123', {
+      'name': 'Alice',
+      'age': 30,
+    });
     print('SET result: ${setResponse.status.value}');
 
     print('Getting value...');

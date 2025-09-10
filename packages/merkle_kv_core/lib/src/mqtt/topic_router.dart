@@ -58,7 +58,7 @@ class TopicRouterImpl implements TopicRouter {
 
   /// Creates a TopicRouter with the provided configuration and MQTT client.
   TopicRouterImpl(MerkleKVConfig config, this._mqttClient)
-      : _topicScheme = TopicScheme.create(config.topicPrefix, config.clientId) {
+    : _topicScheme = TopicScheme.create(config.topicPrefix, config.clientId) {
     _initializeConnectionMonitoring();
   }
 
@@ -92,7 +92,9 @@ class TopicRouterImpl implements TopicRouter {
     // Re-subscribe to replication if handler is active
     if (_replicationHandler != null) {
       await _mqttClient.subscribe(
-          _topicScheme.replicationTopic, _replicationHandler!);
+        _topicScheme.replicationTopic,
+        _replicationHandler!,
+      );
       developer.log(
         'Restored replication subscription: ${_topicScheme.replicationTopic}',
         name: 'TopicRouter',
@@ -103,7 +105,8 @@ class TopicRouterImpl implements TopicRouter {
 
   @override
   Future<void> subscribeToCommands(
-      void Function(String, String) handler) async {
+    void Function(String, String) handler,
+  ) async {
     _commandHandler = handler;
     await _mqttClient.subscribe(_topicScheme.commandTopic, handler);
 
@@ -116,7 +119,8 @@ class TopicRouterImpl implements TopicRouter {
 
   @override
   Future<void> subscribeToReplication(
-      void Function(String, String) handler) async {
+    void Function(String, String) handler,
+  ) async {
     _replicationHandler = handler;
     await _mqttClient.subscribe(_topicScheme.replicationTopic, handler);
 

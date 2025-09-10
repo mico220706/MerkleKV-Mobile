@@ -39,20 +39,24 @@ void main() {
 
       test('enforces TLS when credentials are present', () {
         expect(
-          () => MqttClientImpl(MerkleKVConfig(
-            mqttHost: 'localhost',
-            mqttPort: 1883,
-            clientId: 'test-client',
-            nodeId: 'test-node',
-            mqttUseTls: false,
-            username: 'user',
-            password: 'pass',
-          )),
-          throwsA(isA<ArgumentError>().having(
-            (e) => e.message,
-            'message',
-            contains('TLS must be enabled when credentials are provided'),
-          )),
+          () => MqttClientImpl(
+            MerkleKVConfig(
+              mqttHost: 'localhost',
+              mqttPort: 1883,
+              clientId: 'test-client',
+              nodeId: 'test-node',
+              mqttUseTls: false,
+              username: 'user',
+              password: 'pass',
+            ),
+          ),
+          throwsA(
+            isA<ArgumentError>().having(
+              (e) => e.message,
+              'message',
+              contains('TLS must be enabled when credentials are provided'),
+            ),
+          ),
         );
       });
 
@@ -123,10 +127,7 @@ void main() {
 
         client = MqttClientImpl(badConfig);
 
-        expect(
-          () => client.connect(),
-          throwsA(isA<Exception>()),
-        );
+        expect(() => client.connect(), throwsA(isA<Exception>()));
       });
     });
 
@@ -180,8 +181,10 @@ void main() {
 
         // Since we're disconnected, message should be queued
         // This tests the default parameter behavior
-        expect(() => client.publish('test/topic', 'test payload'),
-            returnsNormally);
+        expect(
+          () => client.publish('test/topic', 'test payload'),
+          returnsNormally,
+        );
       });
 
       test('respects QoS and retain overrides when specified', () async {
@@ -280,11 +283,13 @@ void main() {
 
         expect(
           () => client.connect(),
-          throwsA(isA<Exception>().having(
-            (e) => e.toString(),
-            'message',
-            contains('Network error'),
-          )),
+          throwsA(
+            isA<Exception>().having(
+              (e) => e.toString(),
+              'message',
+              contains('Network error'),
+            ),
+          ),
         );
       });
 

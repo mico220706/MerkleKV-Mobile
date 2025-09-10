@@ -58,10 +58,7 @@ class DefaultConfig {
   }
 
   /// Offline configuration for testing without MQTT
-  static MerkleKVConfig offline({
-    required String clientId,
-    String? nodeId,
-  }) {
+  static MerkleKVConfig offline({required String clientId, String? nodeId}) {
     return MerkleKVConfig(
       mqttHost: 'offline',
       mqttUseTls: false,

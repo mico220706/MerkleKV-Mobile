@@ -46,9 +46,7 @@ void main() {
     });
 
     test('CommandCorrelator payload size validation works', () async {
-      final correlator = CommandCorrelator(
-        publishCommand: (payload) async {},
-      );
+      final correlator = CommandCorrelator(publishCommand: (payload) async {});
 
       // Large payload should be rejected
       final largeValue = 'x' * (600 * 1024); // 600 KiB
@@ -86,8 +84,10 @@ void main() {
       expect(UuidGenerator.isValidUuid(publishedCommand.id), isTrue);
 
       // Send a response to complete the request
-      final response =
-          Response.ok(id: publishedCommand.id, value: 'test-result');
+      final response = Response.ok(
+        id: publishedCommand.id,
+        value: 'test-result',
+      );
       correlator.onResponse(response.toJsonString());
 
       final actualResponse = await futureResponse;
@@ -98,9 +98,7 @@ void main() {
     });
 
     test('CommandCorrelator handles timeouts correctly', () async {
-      final correlator = CommandCorrelator(
-        publishCommand: (payload) async {},
-      );
+      final correlator = CommandCorrelator(publishCommand: (payload) async {});
 
       final command = Command(id: 'timeout-test', op: 'GET', key: 'test');
 
@@ -133,7 +131,8 @@ void main() {
 
       // Complete first request
       correlator.onResponse(
-          Response.ok(id: 'dedup-test', value: 'cached-value').toJsonString());
+        Response.ok(id: 'dedup-test', value: 'cached-value').toJsonString(),
+      );
       final response1 = await future1;
       expect(response1.value, equals('cached-value'));
 

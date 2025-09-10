@@ -40,7 +40,9 @@ class MockMqttClient implements MqttClientInterface {
 
   @override
   Future<void> subscribe(
-      String topic, void Function(String, String) handler) async {
+    String topic,
+    void Function(String, String) handler,
+  ) async {
     subscribedTopics.add(topic);
     subscriptionHandlers[topic] = handler;
   }
@@ -58,12 +60,14 @@ class MockMqttClient implements MqttClientInterface {
     bool forceQoS1 = true,
     bool forceRetainFalse = true,
   }) async {
-    publishCalls.add(PublishCall(
-      topic: topic,
-      payload: payload,
-      qos1: forceQoS1,
-      retainFalse: forceRetainFalse,
-    ));
+    publishCalls.add(
+      PublishCall(
+        topic: topic,
+        payload: payload,
+        qos1: forceQoS1,
+        retainFalse: forceRetainFalse,
+      ),
+    );
   }
 
   /// Simulate receiving a message
@@ -138,12 +142,16 @@ void main() {
           receivedPayload = payload;
         });
 
-        expect(mockClient.subscribedTopics,
-            contains('test/prefix/test-client/cmd'));
+        expect(
+          mockClient.subscribedTopics,
+          contains('test/prefix/test-client/cmd'),
+        );
 
         // Simulate receiving a command
         mockClient.simulateMessage(
-            'test/prefix/test-client/cmd', 'test-command');
+          'test/prefix/test-client/cmd',
+          'test-command',
+        );
 
         expect(receivedTopic, equals('test/prefix/test-client/cmd'));
         expect(receivedPayload, equals('test-command'));
@@ -158,12 +166,16 @@ void main() {
           receivedPayload = payload;
         });
 
-        expect(mockClient.subscribedTopics,
-            contains('test/prefix/replication/events'));
+        expect(
+          mockClient.subscribedTopics,
+          contains('test/prefix/replication/events'),
+        );
 
         // Simulate receiving a replication event
         mockClient.simulateMessage(
-            'test/prefix/replication/events', 'replication-event');
+          'test/prefix/replication/events',
+          'replication-event',
+        );
 
         expect(receivedTopic, equals('test/prefix/replication/events'));
         expect(receivedPayload, equals('replication-event'));
@@ -192,10 +204,14 @@ void main() {
         });
 
         // Both should subscribe to same replication topic
-        expect(mockClient.subscribedTopics,
-            contains('test/prefix/replication/events'));
-        expect(mockClient2.subscribedTopics,
-            contains('test/prefix/replication/events'));
+        expect(
+          mockClient.subscribedTopics,
+          contains('test/prefix/replication/events'),
+        );
+        expect(
+          mockClient2.subscribedTopics,
+          contains('test/prefix/replication/events'),
+        );
 
         // Simulate replication message to both
         mockClient.simulateMessage('test/prefix/replication/events', 'event1');
@@ -211,46 +227,49 @@ void main() {
 
     group('publishing with QoS enforcement', () {
       test(
-          'publishCommand publishes to correct target topic with QoS=1, retain=false',
-          () async {
-        await router.publishCommand('target-device', 'command-payload');
+        'publishCommand publishes to correct target topic with QoS=1, retain=false',
+        () async {
+          await router.publishCommand('target-device', 'command-payload');
 
-        expect(mockClient.publishCalls, hasLength(1));
-        final call = mockClient.publishCalls.first;
+          expect(mockClient.publishCalls, hasLength(1));
+          final call = mockClient.publishCalls.first;
 
-        expect(call.topic, equals('test/prefix/target-device/cmd'));
-        expect(call.payload, equals('command-payload'));
-        expect(call.qos1, isTrue);
-        expect(call.retainFalse, isTrue);
-      });
-
-      test(
-          'publishResponse publishes to own response topic with QoS=1, retain=false',
-          () async {
-        await router.publishResponse('response-payload');
-
-        expect(mockClient.publishCalls, hasLength(1));
-        final call = mockClient.publishCalls.first;
-
-        expect(call.topic, equals('test/prefix/test-client/res'));
-        expect(call.payload, equals('response-payload'));
-        expect(call.qos1, isTrue);
-        expect(call.retainFalse, isTrue);
-      });
+          expect(call.topic, equals('test/prefix/target-device/cmd'));
+          expect(call.payload, equals('command-payload'));
+          expect(call.qos1, isTrue);
+          expect(call.retainFalse, isTrue);
+        },
+      );
 
       test(
-          'publishReplication publishes to replication topic with QoS=1, retain=false',
-          () async {
-        await router.publishReplication('replication-payload');
+        'publishResponse publishes to own response topic with QoS=1, retain=false',
+        () async {
+          await router.publishResponse('response-payload');
 
-        expect(mockClient.publishCalls, hasLength(1));
-        final call = mockClient.publishCalls.first;
+          expect(mockClient.publishCalls, hasLength(1));
+          final call = mockClient.publishCalls.first;
 
-        expect(call.topic, equals('test/prefix/replication/events'));
-        expect(call.payload, equals('replication-payload'));
-        expect(call.qos1, isTrue);
-        expect(call.retainFalse, isTrue);
-      });
+          expect(call.topic, equals('test/prefix/test-client/res'));
+          expect(call.payload, equals('response-payload'));
+          expect(call.qos1, isTrue);
+          expect(call.retainFalse, isTrue);
+        },
+      );
+
+      test(
+        'publishReplication publishes to replication topic with QoS=1, retain=false',
+        () async {
+          await router.publishReplication('replication-payload');
+
+          expect(mockClient.publishCalls, hasLength(1));
+          final call = mockClient.publishCalls.first;
+
+          expect(call.topic, equals('test/prefix/replication/events'));
+          expect(call.payload, equals('replication-payload'));
+          expect(call.qos1, isTrue);
+          expect(call.retainFalse, isTrue);
+        },
+      );
     });
 
     group('target clientId validation', () {
@@ -259,24 +278,33 @@ void main() {
         expect(
           () => router.publishCommand('invalid/client', 'payload'),
           throwsA(
-            isA<InvalidConfigException>()
-                .having((e) => e.parameter, 'parameter', 'clientId'),
+            isA<InvalidConfigException>().having(
+              (e) => e.parameter,
+              'parameter',
+              'clientId',
+            ),
           ),
         );
 
         expect(
           () => router.publishCommand('client+wildcard', 'payload'),
           throwsA(
-            isA<InvalidConfigException>()
-                .having((e) => e.parameter, 'parameter', 'clientId'),
+            isA<InvalidConfigException>().having(
+              (e) => e.parameter,
+              'parameter',
+              'clientId',
+            ),
           ),
         );
 
         expect(
           () => router.publishCommand('client#wildcard', 'payload'),
           throwsA(
-            isA<InvalidConfigException>()
-                .having((e) => e.parameter, 'parameter', 'clientId'),
+            isA<InvalidConfigException>().having(
+              (e) => e.parameter,
+              'parameter',
+              'clientId',
+            ),
           ),
         );
 
@@ -284,8 +312,11 @@ void main() {
         expect(
           () => router.publishCommand('', 'payload'),
           throwsA(
-            isA<InvalidConfigException>()
-                .having((e) => e.parameter, 'parameter', 'clientId'),
+            isA<InvalidConfigException>().having(
+              (e) => e.parameter,
+              'parameter',
+              'clientId',
+            ),
           ),
         );
 
@@ -294,8 +325,11 @@ void main() {
         expect(
           () => router.publishCommand(longClientId, 'payload'),
           throwsA(
-            isA<InvalidConfigException>()
-                .having((e) => e.parameter, 'parameter', 'clientId'),
+            isA<InvalidConfigException>().having(
+              (e) => e.parameter,
+              'parameter',
+              'clientId',
+            ),
           ),
         );
       });
@@ -331,10 +365,14 @@ void main() {
         await Future.delayed(const Duration(milliseconds: 5));
 
         // Verify subscriptions were restored
-        expect(mockClient.subscribedTopics,
-            contains('test/prefix/test-client/cmd'));
-        expect(mockClient.subscribedTopics,
-            contains('test/prefix/replication/events'));
+        expect(
+          mockClient.subscribedTopics,
+          contains('test/prefix/test-client/cmd'),
+        );
+        expect(
+          mockClient.subscribedTopics,
+          contains('test/prefix/replication/events'),
+        );
       });
 
       test('only restores active subscriptions', () async {
@@ -349,10 +387,14 @@ void main() {
         await Future.delayed(const Duration(milliseconds: 5));
 
         // Only command subscription should be restored
-        expect(mockClient.subscribedTopics,
-            contains('test/prefix/test-client/cmd'));
-        expect(mockClient.subscribedTopics,
-            isNot(contains('test/prefix/replication/events')));
+        expect(
+          mockClient.subscribedTopics,
+          contains('test/prefix/test-client/cmd'),
+        );
+        expect(
+          mockClient.subscribedTopics,
+          isNot(contains('test/prefix/replication/events')),
+        );
       });
 
       test('handles multiple reconnection cycles', () async {
@@ -368,8 +410,10 @@ void main() {
           mockClient.simulateConnectionState(ConnectionState.connected);
           await Future.delayed(const Duration(milliseconds: 1));
 
-          expect(mockClient.subscribedTopics,
-              contains('test/prefix/test-client/cmd'));
+          expect(
+            mockClient.subscribedTopics,
+            contains('test/prefix/test-client/cmd'),
+          );
         }
       });
     });
@@ -428,15 +472,20 @@ void main() {
           topicPrefix: '  //test/prefix//  ', // Unnormalized
         );
 
-        final routerWithNormalizedPrefix =
-            TopicRouterImpl(configWithUnnormalizedPrefix, mockClient);
+        final routerWithNormalizedPrefix = TopicRouterImpl(
+          configWithUnnormalizedPrefix,
+          mockClient,
+        );
 
-        await routerWithNormalizedPrefix
-            .subscribeToCommands((topic, payload) {});
+        await routerWithNormalizedPrefix.subscribeToCommands(
+          (topic, payload) {},
+        );
 
         // Should normalize to 'test/prefix'
         expect(
-            mockClient.subscribedTopics, contains('test/prefix/client-1/cmd'));
+          mockClient.subscribedTopics,
+          contains('test/prefix/client-1/cmd'),
+        );
 
         await routerWithNormalizedPrefix.dispose();
       });

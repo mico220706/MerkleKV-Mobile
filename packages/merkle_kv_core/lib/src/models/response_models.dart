@@ -2,12 +2,7 @@
 library response_models;
 
 /// Status enumeration for operation responses
-enum OperationStatus {
-  ok,
-  notFound,
-  error,
-  timeout,
-}
+enum OperationStatus { ok, notFound, error, timeout }
 
 /// Response from a key-value operation
 class OperationResponse {
@@ -130,8 +125,10 @@ class OperationResponse {
           : null,
       error: json['error'] as String?,
       timestamp: json['timestamp'] != null
-          ? DateTime.fromMillisecondsSinceEpoch(json['timestamp'] as int,
-              isUtc: true)
+          ? DateTime.fromMillisecondsSinceEpoch(
+              json['timestamp'] as int,
+              isUtc: true,
+            )
           : DateTime.now().toUtc(),
       operation: json['operation'] as String?,
       key: json['key'] as String?,
@@ -294,8 +291,10 @@ class BatchOperationResponse {
       status: status,
       error: json['error'] as String?,
       timestamp: json['timestamp'] != null
-          ? DateTime.fromMillisecondsSinceEpoch(json['timestamp'] as int,
-              isUtc: true)
+          ? DateTime.fromMillisecondsSinceEpoch(
+              json['timestamp'] as int,
+              isUtc: true,
+            )
           : DateTime.now().toUtc(),
     );
   }
@@ -350,17 +349,13 @@ class BatchOperationResponse {
 
   @override
   int get hashCode {
-    return Object.hash(
-      id,
-      Object.hashAll(responses),
-      status,
-      error,
-      timestamp,
-    );
+    return Object.hash(id, Object.hashAll(responses), status, error, timestamp);
   }
 
   static bool _listEquals(
-      List<OperationResponse> a, List<OperationResponse> b) {
+    List<OperationResponse> a,
+    List<OperationResponse> b,
+  ) {
     if (a.length != b.length) return false;
     for (int i = 0; i < a.length; i++) {
       if (a[i] != b[i]) return false;

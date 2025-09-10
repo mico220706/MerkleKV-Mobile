@@ -74,10 +74,7 @@ class Command {
 
   /// Converts Command to JSON object for serialization.
   Map<String, dynamic> toJson() {
-    final json = <String, dynamic>{
-      'id': id,
-      'op': op,
-    };
+    final json = <String, dynamic>{'id': id, 'op': op};
 
     if (key != null) json['key'] = key;
     if (keys != null) json['keys'] = keys;
@@ -199,14 +196,11 @@ class Command {
     int amount = 1,
   }) {
     if (!NumericOperations.isValidAmount(amount)) {
-      throw ArgumentError('Amount must be in range [-9e15, 9e15], got: $amount');
+      throw ArgumentError(
+        'Amount must be in range [-9e15, 9e15], got: $amount',
+      );
     }
-    return Command(
-      id: id,
-      op: 'INCR',
-      key: key,
-      amount: amount,
-    );
+    return Command(id: id, op: 'INCR', key: key, amount: amount);
   }
 
   /// Creates a DECR command with optional amount (default 1).
@@ -216,13 +210,10 @@ class Command {
     int amount = 1,
   }) {
     if (!NumericOperations.isValidAmount(amount)) {
-      throw ArgumentError('Amount must be in range [-9e15, 9e15], got: $amount');
+      throw ArgumentError(
+        'Amount must be in range [-9e15, 9e15], got: $amount',
+      );
     }
-    return Command(
-      id: id,
-      op: 'DECR',
-      key: key,
-      amount: amount,
-    );
+    return Command(id: id, op: 'DECR', key: key, amount: amount);
   }
 }

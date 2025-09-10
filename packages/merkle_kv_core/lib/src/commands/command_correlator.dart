@@ -146,8 +146,8 @@ class CommandCorrelator {
   CommandCorrelator({
     required Future<void> Function(String jsonPayload) publishCommand,
     void Function(_LogEntry entry)? logger,
-  })  : _publishCommand = publishCommand,
-        _logger = logger;
+  }) : _publishCommand = publishCommand,
+       _logger = logger;
 
   /// Sends a command and returns a Future that completes with the response.
   ///
@@ -188,15 +188,17 @@ class CommandCorrelator {
 
     if (payloadSizeBytes > _maxPayloadSizeBytes) {
       final response = Response.payloadTooLarge(commandId);
-      _log(_LogEntry(
-        requestId: commandId,
-        op: command.op,
-        sizeBytes: payloadSizeBytes,
-        phase: 'validation',
-        durationMs: stopwatch.elapsedMilliseconds,
-        result: 'error',
-        errorCode: response.errorCode,
-      ));
+      _log(
+        _LogEntry(
+          requestId: commandId,
+          op: command.op,
+          sizeBytes: payloadSizeBytes,
+          phase: 'validation',
+          durationMs: stopwatch.elapsedMilliseconds,
+          result: 'error',
+          errorCode: response.errorCode,
+        ),
+      );
       return Future.value(response);
     }
 
@@ -204,18 +206,22 @@ class CommandCorrelator {
     final cachedEntry = _deduplicationCache[commandId];
     if (cachedEntry != null) {
       if (!cachedEntry.isExpired) {
-        final response =
-            Response.idempotentReplay(commandId, cachedEntry.response.value);
+        final response = Response.idempotentReplay(
+          commandId,
+          cachedEntry.response.value,
+        );
         _updateCacheAccessOrder(commandId);
-        _log(_LogEntry(
-          requestId: commandId,
-          op: command.op,
-          sizeBytes: payloadSizeBytes,
-          phase: 'cache_hit',
-          durationMs: stopwatch.elapsedMilliseconds,
-          result: 'idempotent_replay',
-          errorCode: ErrorCode.idempotentReplay,
-        ));
+        _log(
+          _LogEntry(
+            requestId: commandId,
+            op: command.op,
+            sizeBytes: payloadSizeBytes,
+            phase: 'cache_hit',
+            durationMs: stopwatch.elapsedMilliseconds,
+            result: 'idempotent_replay',
+            errorCode: ErrorCode.idempotentReplay,
+          ),
+        );
         return Future.value(response);
       } else {
         // Remove expired entry
@@ -253,49 +259,61 @@ class CommandCorrelator {
   }
 
   /// Helper method to handle async publishing for new requests.
-  Future<void> _sendNew(Command commandWithId, int payloadSizeBytes,
-      Stopwatch stopwatch, _PendingRequest pendingRequest) async {
+  Future<void> _sendNew(
+    Command commandWithId,
+    int payloadSizeBytes,
+    Stopwatch stopwatch,
+    _PendingRequest pendingRequest,
+  ) async {
     final commandId = commandWithId.id;
     final jsonPayload = commandWithId.toJsonString();
 
     // We are the owner - log and publish
-    _log(_LogEntry(
-      requestId: commandId,
-      op: commandWithId.op,
-      sizeBytes: payloadSizeBytes,
-      phase: 'request_start',
-      durationMs: stopwatch.elapsedMilliseconds,
-      result: 'pending',
-    ));
+    _log(
+      _LogEntry(
+        requestId: commandId,
+        op: commandWithId.op,
+        sizeBytes: payloadSizeBytes,
+        phase: 'request_start',
+        durationMs: stopwatch.elapsedMilliseconds,
+        result: 'pending',
+      ),
+    );
 
     try {
       // Publish command via MQTT (only the owner publishes)
       await _publishCommand(jsonPayload);
 
-      _log(_LogEntry(
-        requestId: commandId,
-        op: commandWithId.op,
-        sizeBytes: payloadSizeBytes,
-        phase: 'request_sent',
-        durationMs: stopwatch.elapsedMilliseconds,
-        result: 'sent',
-      ));
+      _log(
+        _LogEntry(
+          requestId: commandId,
+          op: commandWithId.op,
+          sizeBytes: payloadSizeBytes,
+          phase: 'request_sent',
+          durationMs: stopwatch.elapsedMilliseconds,
+          result: 'sent',
+        ),
+      );
     } catch (e) {
       // Failed to publish - clean up and return error
       pendingRequest.dispose();
       _pendingRequests.remove(commandId);
 
-      final response =
-          Response.internalError(commandId, 'Failed to publish command: $e');
-      _log(_LogEntry(
-        requestId: commandId,
-        op: commandWithId.op,
-        sizeBytes: payloadSizeBytes,
-        phase: 'publish_error',
-        durationMs: stopwatch.elapsedMilliseconds,
-        result: 'error',
-        errorCode: response.errorCode,
-      ));
+      final response = Response.internalError(
+        commandId,
+        'Failed to publish command: $e',
+      );
+      _log(
+        _LogEntry(
+          requestId: commandId,
+          op: commandWithId.op,
+          sizeBytes: payloadSizeBytes,
+          phase: 'publish_error',
+          durationMs: stopwatch.elapsedMilliseconds,
+          result: 'error',
+          errorCode: response.errorCode,
+        ),
+      );
 
       pendingRequest.completer.complete(response);
       return;
@@ -324,15 +342,17 @@ class CommandCorrelator {
           _addToCache(requestId, response);
         }
 
-        _log(_LogEntry(
-          requestId: requestId,
-          op: pendingRequest.command.op,
-          sizeBytes: utf8.encode(jsonString).length,
-          phase: 'response_received',
-          durationMs: pendingRequest.stopwatch.elapsedMilliseconds,
-          result: response.isSuccess ? 'success' : 'error',
-          errorCode: response.errorCode,
-        ));
+        _log(
+          _LogEntry(
+            requestId: requestId,
+            op: pendingRequest.command.op,
+            sizeBytes: utf8.encode(jsonString).length,
+            phase: 'response_received',
+            durationMs: pendingRequest.stopwatch.elapsedMilliseconds,
+            result: response.isSuccess ? 'success' : 'error',
+            errorCode: response.errorCode,
+          ),
+        );
 
         pendingRequest.completer.complete(response);
       } else {
@@ -341,26 +361,30 @@ class CommandCorrelator {
           _addToCache(requestId, response);
         }
 
-        _log(_LogEntry(
-          requestId: requestId,
-          op: 'unknown',
-          sizeBytes: utf8.encode(jsonString).length,
-          phase: 'late_response',
-          durationMs: 0,
-          result: 'ignored',
-        ));
+        _log(
+          _LogEntry(
+            requestId: requestId,
+            op: 'unknown',
+            sizeBytes: utf8.encode(jsonString).length,
+            phase: 'late_response',
+            durationMs: 0,
+            result: 'ignored',
+          ),
+        );
       }
     } catch (e) {
       // Malformed response - log but don't crash
-      _log(_LogEntry(
-        requestId: 'unknown',
-        op: 'unknown',
-        sizeBytes: utf8.encode(jsonString).length,
-        phase: 'response_parse_error',
-        durationMs: 0,
-        result: 'error',
-        errorCode: ErrorCode.invalidRequest,
-      ));
+      _log(
+        _LogEntry(
+          requestId: 'unknown',
+          op: 'unknown',
+          sizeBytes: utf8.encode(jsonString).length,
+          phase: 'response_parse_error',
+          durationMs: 0,
+          result: 'error',
+          errorCode: ErrorCode.invalidRequest,
+        ),
+      );
     }
   }
 
@@ -372,15 +396,17 @@ class CommandCorrelator {
 
       final response = Response.timeout(requestId);
 
-      _log(_LogEntry(
-        requestId: requestId,
-        op: pendingRequest.command.op,
-        sizeBytes: utf8.encode(pendingRequest.command.toJsonString()).length,
-        phase: 'timeout',
-        durationMs: stopwatch.elapsedMilliseconds,
-        result: 'timeout',
-        errorCode: ErrorCode.timeout,
-      ));
+      _log(
+        _LogEntry(
+          requestId: requestId,
+          op: pendingRequest.command.op,
+          sizeBytes: utf8.encode(pendingRequest.command.toJsonString()).length,
+          phase: 'timeout',
+          durationMs: stopwatch.elapsedMilliseconds,
+          result: 'timeout',
+          errorCode: ErrorCode.timeout,
+        ),
+      );
 
       pendingRequest.completer.complete(response);
     }
@@ -444,10 +470,12 @@ class CommandCorrelator {
   void dispose() {
     for (final request in _pendingRequests.values) {
       request.dispose();
-      request.completer.complete(Response.internalError(
-        request.command.id,
-        'CommandCorrelator disposed',
-      ));
+      request.completer.complete(
+        Response.internalError(
+          request.command.id,
+          'CommandCorrelator disposed',
+        ),
+      );
     }
 
     _pendingRequests.clear();

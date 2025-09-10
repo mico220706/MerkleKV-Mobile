@@ -24,10 +24,10 @@ abstract class CommandProcessor {
   /// Deletes a key (always returns OK - idempotent).
   Future<Response> delete(String key);
 
-  /// Increments a numeric value by the specified amount. 
+  /// Increments a numeric value by the specified amount.
   Future<Response> increment(String key, int amount);
 
-  /// Decrements a numeric value by the specified amount. 
+  /// Decrements a numeric value by the specified amount.
   Future<Response> decrement(String key, int amount);
 }
 
@@ -79,7 +79,9 @@ class CommandProcessorImpl implements CommandProcessor {
         case 'GET':
           if (command.key == null) {
             response = Response.invalidRequest(
-                command.id, 'Missing key for GET operation');
+              command.id,
+              'Missing key for GET operation',
+            );
           } else {
             response = await get(command.key!);
           }
@@ -87,10 +89,14 @@ class CommandProcessorImpl implements CommandProcessor {
         case 'SET':
           if (command.key == null) {
             response = Response.invalidRequest(
-                command.id, 'Missing key for SET operation');
+              command.id,
+              'Missing key for SET operation',
+            );
           } else if (command.value == null) {
             response = Response.invalidRequest(
-                command.id, 'Missing value for SET operation');
+              command.id,
+              'Missing value for SET operation',
+            );
           } else {
             response = await set(command.key!, command.value.toString());
           }
@@ -99,34 +105,44 @@ class CommandProcessorImpl implements CommandProcessor {
         case 'DELETE':
           if (command.key == null) {
             response = Response.invalidRequest(
-                command.id, 'Missing key for DELETE operation');
+              command.id,
+              'Missing key for DELETE operation',
+            );
           } else {
             response = await delete(command.key!);
           }
           break;
-        case 'INCR': 
+        case 'INCR':
           if (command.key == null) {
             response = Response.invalidRequest(
-                command.id, 'Missing key for INCR operation');
+              command.id,
+              'Missing key for INCR operation',
+            );
           } else {
             final amount = command.amount ?? 1;
             if (!NumericOperations.isValidAmount(amount)) {
               response = Response.invalidRequest(
-                  command.id, 'Amount must be in range [-9e15, 9e15], got: $amount');
+                command.id,
+                'Amount must be in range [-9e15, 9e15], got: $amount',
+              );
             } else {
               response = await increment(command.key!, amount);
             }
           }
           break;
-        case 'DECR': 
+        case 'DECR':
           if (command.key == null) {
             response = Response.invalidRequest(
-                command.id, 'Missing key for DECR operation');
+              command.id,
+              'Missing key for DECR operation',
+            );
           } else {
             final amount = command.amount ?? 1;
             if (!NumericOperations.isValidAmount(amount)) {
               response = Response.invalidRequest(
-                  command.id, 'Amount must be in range [-9e15, 9e15], got: $amount');
+                command.id,
+                'Amount must be in range [-9e15, 9e15], got: $amount',
+              );
             } else {
               response = await decrement(command.key!, amount);
             }
@@ -134,7 +150,9 @@ class CommandProcessorImpl implements CommandProcessor {
           break;
         default:
           response = Response.invalidRequest(
-              command.id, 'Unsupported operation: ${command.op}');
+            command.id,
+            'Unsupported operation: ${command.op}',
+          );
       }
     } catch (e) {
       response = Response.internalError(command.id, 'Internal error: $e');
@@ -242,9 +260,9 @@ class CommandProcessorImpl implements CommandProcessor {
   }
 
   Future<Response> _performNumericOperation(
-    String key, 
-    int amount, 
-    bool isIncrement
+    String key,
+    int amount,
+    bool isIncrement,
   ) async {
     try {
       // Validate key size
@@ -262,8 +280,10 @@ class CommandProcessorImpl implements CommandProcessor {
         final parsed = NumericOperations.parseInteger(current.value);
         if (parsed == null) {
           // Value exists but is not a valid integer
-          return Response.invalidType('', 
-              'Value is not a valid integer: ${current.value}');
+          return Response.invalidType(
+            '',
+            'Value is not a valid integer: ${current.value}',
+          );
         }
         currentInt = parsed;
       }
@@ -297,7 +317,6 @@ class CommandProcessorImpl implements CommandProcessor {
       await _storage.put(key, entry);
 
       return Response.ok(id: '', value: canonicalValue);
-
     } catch (e) {
       return Response.internalError('', 'Numeric operation failed: $e');
     }

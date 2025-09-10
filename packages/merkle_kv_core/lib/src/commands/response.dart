@@ -6,8 +6,8 @@ class ErrorCode {
   static const int timeout = 101;
   static const int notFound = 102;
   static const int payloadTooLarge = 103;
-  static const int rangeOverflow = 104;  
-  static const int invalidType = 105; 
+  static const int rangeOverflow = 104;
+  static const int invalidType = 105;
   static const int idempotentReplay =
       110; // Special case for idempotent operations
   static const int internalError = 199;
@@ -23,9 +23,9 @@ class ErrorCode {
         return 'Key not found';
       case payloadTooLarge:
         return 'Payload exceeds maximum size limit';
-      case rangeOverflow:                  
+      case rangeOverflow:
         return 'Numeric operation resulted in overflow';
-      case invalidType:                
+      case invalidType:
         return 'Value is not a valid integer for numeric operation';
       case idempotentReplay:
         return 'Idempotent replay of cached response';
@@ -226,10 +226,7 @@ class Response {
 
   /// Converts Response to JSON object for serialization.
   Map<String, dynamic> toJson() {
-    final json = <String, dynamic>{
-      'id': id,
-      'status': status.value,
-    };
+    final json = <String, dynamic>{'id': id, 'status': status.value};
 
     if (value != null) json['value'] = value;
     if (error != null) json['error'] = error;

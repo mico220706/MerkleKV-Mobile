@@ -81,11 +81,13 @@ void main() {
             clientId: 'test-client',
             nodeId: 'test-node',
           ),
-          throwsA(isA<InvalidConfigException>().having(
-            (e) => e.parameter,
-            'parameter',
-            equals('mqttHost'),
-          )),
+          throwsA(
+            isA<InvalidConfigException>().having(
+              (e) => e.parameter,
+              'parameter',
+              equals('mqttHost'),
+            ),
+          ),
         );
 
         expect(
@@ -94,11 +96,13 @@ void main() {
             clientId: 'test-client',
             nodeId: 'test-node',
           ),
-          throwsA(isA<InvalidConfigException>().having(
-            (e) => e.parameter,
-            'parameter',
-            equals('mqttHost'),
-          )),
+          throwsA(
+            isA<InvalidConfigException>().having(
+              (e) => e.parameter,
+              'parameter',
+              equals('mqttHost'),
+            ),
+          ),
         );
       });
 
@@ -111,11 +115,13 @@ void main() {
             clientId: 'test-client',
             nodeId: 'test-node',
           ),
-          throwsA(isA<InvalidConfigException>().having(
-            (e) => e.parameter,
-            'parameter',
-            equals('mqttPort'),
-          )),
+          throwsA(
+            isA<InvalidConfigException>().having(
+              (e) => e.parameter,
+              'parameter',
+              equals('mqttPort'),
+            ),
+          ),
         );
 
         expect(
@@ -125,11 +131,13 @@ void main() {
             clientId: 'test-client',
             nodeId: 'test-node',
           ),
-          throwsA(isA<InvalidConfigException>().having(
-            (e) => e.parameter,
-            'parameter',
-            equals('mqttPort'),
-          )),
+          throwsA(
+            isA<InvalidConfigException>().having(
+              (e) => e.parameter,
+              'parameter',
+              equals('mqttPort'),
+            ),
+          ),
         );
 
         // Test valid edge cases
@@ -158,11 +166,13 @@ void main() {
             clientId: '',
             nodeId: 'test-node',
           ),
-          throwsA(isA<InvalidConfigException>().having(
-            (e) => e.parameter,
-            'parameter',
-            equals('clientId'),
-          )),
+          throwsA(
+            isA<InvalidConfigException>().having(
+              (e) => e.parameter,
+              'parameter',
+              equals('clientId'),
+            ),
+          ),
         );
 
         // Too long clientId (129 characters)
@@ -173,11 +183,13 @@ void main() {
             clientId: longClientId,
             nodeId: 'test-node',
           ),
-          throwsA(isA<InvalidConfigException>().having(
-            (e) => e.parameter,
-            'parameter',
-            equals('clientId'),
-          )),
+          throwsA(
+            isA<InvalidConfigException>().having(
+              (e) => e.parameter,
+              'parameter',
+              equals('clientId'),
+            ),
+          ),
         );
 
         // Valid edge case: exactly 128 characters
@@ -198,11 +210,13 @@ void main() {
             clientId: 'test-client',
             nodeId: '',
           ),
-          throwsA(isA<InvalidConfigException>().having(
-            (e) => e.parameter,
-            'parameter',
-            equals('nodeId'),
-          )),
+          throwsA(
+            isA<InvalidConfigException>().having(
+              (e) => e.parameter,
+              'parameter',
+              equals('nodeId'),
+            ),
+          ),
         );
 
         // Too long nodeId (129 characters)
@@ -213,11 +227,13 @@ void main() {
             clientId: 'test-client',
             nodeId: longNodeId,
           ),
-          throwsA(isA<InvalidConfigException>().having(
-            (e) => e.parameter,
-            'parameter',
-            equals('nodeId'),
-          )),
+          throwsA(
+            isA<InvalidConfigException>().having(
+              (e) => e.parameter,
+              'parameter',
+              equals('nodeId'),
+            ),
+          ),
         );
 
         // Valid edge case: exactly 128 characters
@@ -239,11 +255,13 @@ void main() {
             nodeId: 'test-node',
             keepAliveSeconds: 0,
           ),
-          throwsA(isA<InvalidConfigException>().having(
-            (e) => e.parameter,
-            'parameter',
-            equals('keepAliveSeconds'),
-          )),
+          throwsA(
+            isA<InvalidConfigException>().having(
+              (e) => e.parameter,
+              'parameter',
+              equals('keepAliveSeconds'),
+            ),
+          ),
         );
 
         expect(
@@ -253,11 +271,13 @@ void main() {
             nodeId: 'test-node',
             keepAliveSeconds: -1,
           ),
-          throwsA(isA<InvalidConfigException>().having(
-            (e) => e.parameter,
-            'parameter',
-            equals('keepAliveSeconds'),
-          )),
+          throwsA(
+            isA<InvalidConfigException>().having(
+              (e) => e.parameter,
+              'parameter',
+              equals('keepAliveSeconds'),
+            ),
+          ),
         );
 
         // sessionExpirySeconds must be positive
@@ -268,11 +288,13 @@ void main() {
             nodeId: 'test-node',
             sessionExpirySeconds: 0,
           ),
-          throwsA(isA<InvalidConfigException>().having(
-            (e) => e.parameter,
-            'parameter',
-            equals('sessionExpirySeconds'),
-          )),
+          throwsA(
+            isA<InvalidConfigException>().having(
+              (e) => e.parameter,
+              'parameter',
+              equals('sessionExpirySeconds'),
+            ),
+          ),
         );
 
         // tombstoneRetentionHours must be positive
@@ -283,11 +305,13 @@ void main() {
             nodeId: 'test-node',
             tombstoneRetentionHours: 0,
           ),
-          throwsA(isA<InvalidConfigException>().having(
-            (e) => e.parameter,
-            'parameter',
-            equals('tombstoneRetentionHours'),
-          )),
+          throwsA(
+            isA<InvalidConfigException>().having(
+              (e) => e.parameter,
+              'parameter',
+              equals('tombstoneRetentionHours'),
+            ),
+          ),
         );
 
         // skewMaxFutureMs can be zero but not negative
@@ -298,11 +322,13 @@ void main() {
             nodeId: 'test-node',
             skewMaxFutureMs: -1,
           ),
-          throwsA(isA<InvalidConfigException>().having(
-            (e) => e.parameter,
-            'parameter',
-            equals('skewMaxFutureMs'),
-          )),
+          throwsA(
+            isA<InvalidConfigException>().having(
+              (e) => e.parameter,
+              'parameter',
+              equals('skewMaxFutureMs'),
+            ),
+          ),
         );
 
         // Valid edge cases
@@ -330,11 +356,13 @@ void main() {
             nodeId: 'test-node',
             persistenceEnabled: true,
           ),
-          throwsA(isA<InvalidConfigException>().having(
-            (e) => e.parameter,
-            'parameter',
-            equals('storagePath'),
-          )),
+          throwsA(
+            isA<InvalidConfigException>().having(
+              (e) => e.parameter,
+              'parameter',
+              equals('storagePath'),
+            ),
+          ),
         );
 
         expect(
@@ -345,11 +373,13 @@ void main() {
             persistenceEnabled: true,
             storagePath: '',
           ),
-          throwsA(isA<InvalidConfigException>().having(
-            (e) => e.parameter,
-            'parameter',
-            equals('storagePath'),
-          )),
+          throwsA(
+            isA<InvalidConfigException>().having(
+              (e) => e.parameter,
+              'parameter',
+              equals('storagePath'),
+            ),
+          ),
         );
 
         expect(
@@ -360,11 +390,13 @@ void main() {
             persistenceEnabled: true,
             storagePath: '   ',
           ),
-          throwsA(isA<InvalidConfigException>().having(
-            (e) => e.parameter,
-            'parameter',
-            equals('storagePath'),
-          )),
+          throwsA(
+            isA<InvalidConfigException>().having(
+              (e) => e.parameter,
+              'parameter',
+              equals('storagePath'),
+            ),
+          ),
         );
 
         // Valid persistence configuration
@@ -387,11 +419,13 @@ void main() {
             nodeId: 'test-node',
             topicPrefix: 'my topic',
           ),
-          throwsA(isA<InvalidConfigException>().having(
-            (e) => e.parameter,
-            'parameter',
-            equals('topicPrefix'),
-          )),
+          throwsA(
+            isA<InvalidConfigException>().having(
+              (e) => e.parameter,
+              'parameter',
+              equals('topicPrefix'),
+            ),
+          ),
         );
       });
     });
@@ -674,15 +708,19 @@ void main() {
     test('formats message correctly with parameter', () {
       const exception = InvalidConfigException('Value is invalid', 'testParam');
       expect(
-          exception.toString(),
-          equals(
-              'InvalidConfigException: Value is invalid (parameter: testParam)'));
+        exception.toString(),
+        equals(
+          'InvalidConfigException: Value is invalid (parameter: testParam)',
+        ),
+      );
     });
 
     test('formats message correctly without parameter', () {
       const exception = InvalidConfigException('General error');
-      expect(exception.toString(),
-          equals('InvalidConfigException: General error'));
+      expect(
+        exception.toString(),
+        equals('InvalidConfigException: General error'),
+      );
     });
 
     test('implements FormatException interface', () {

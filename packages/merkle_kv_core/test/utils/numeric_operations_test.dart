@@ -7,13 +7,25 @@ void main() {
       test('accepts valid amounts', () {
         expect(NumericOperations.isValidAmount(1), isTrue);
         expect(NumericOperations.isValidAmount(-1), isTrue);
-        expect(NumericOperations.isValidAmount(9000000000000000), isTrue);  // 9e15
-        expect(NumericOperations.isValidAmount(-9000000000000000), isTrue); // -9e15
+        expect(
+          NumericOperations.isValidAmount(9000000000000000),
+          isTrue,
+        ); // 9e15
+        expect(
+          NumericOperations.isValidAmount(-9000000000000000),
+          isTrue,
+        ); // -9e15
       });
 
       test('rejects invalid amounts', () {
-        expect(NumericOperations.isValidAmount(9000000000000001), isFalse);   // > 9e15
-        expect(NumericOperations.isValidAmount(-9000000000000001), isFalse);  // < -9e15
+        expect(
+          NumericOperations.isValidAmount(9000000000000001),
+          isFalse,
+        ); // > 9e15
+        expect(
+          NumericOperations.isValidAmount(-9000000000000001),
+          isFalse,
+        ); // < -9e15
       });
     });
 
