@@ -375,6 +375,91 @@ void main() {
         expect(response.value, equals('124'));
       });
     });
+    group('APPEND/PREPEND operations', () {
+      test('APPEND on absent key treats as empty string', () async {
+        final command = Command(id: 'req-1', op: 'APPEND', key: 'log', value: 'hello');
+        final response = await processor.processCommand(command);
+        
+        expect(response.status, equals(ResponseStatus.ok));
+        expect(response.value, equals('hello'));
+      });
+
+      test('APPEND on existing string concatenates correctly', () async {
+        // Set initial value
+        await processor.set('log', 'hello', 'test-req');
+        
+        final command = Command(id: 'req-1', op: 'APPEND', key: 'log', value: ' world');
+        final response = await processor.processCommand(command);
+        
+        expect(response.status, equals(ResponseStatus.ok));
+        expect(response.value, equals('hello world'));
+      });
+
+      test('PREPEND on absent key treats as empty string', () async {
+        final command = Command(id: 'req-1', op: 'PREPEND', key: 'msg', value: 'hello');
+        final response = await processor.processCommand(command);
+        
+        expect(response.status, equals(ResponseStatus.ok));
+        expect(response.value, equals('hello'));
+      });
+
+      test('PREPEND on existing string concatenates correctly', () async {
+        // Set initial value
+        await processor.set('msg', 'world', 'test-req');
+        
+        final command = Command(id: 'req-1', op: 'PREPEND', key: 'msg', value: 'hello ');
+        final response = await processor.processCommand(command);
+        
+        expect(response.status, equals(ResponseStatus.ok));
+        expect(response.value, equals('hello world'));
+      });
+
+      test('APPEND on tombstoned key treats as empty string', () async {
+        // Set and delete key
+        await processor.set('key', 'old', 'test-req');
+        await processor.delete('key', 'test-req');
+        
+        final command = Command(id: 'req-1', op: 'APPEND', key: 'key', value: 'new');
+        final response = await processor.processCommand(command);
+        
+        expect(response.status, equals(ResponseStatus.ok));
+        expect(response.value, equals('new'));
+      });
+
+      test('APPEND returns PAYLOAD_TOO_LARGE when result exceeds 256KiB', () async {
+        // Set large initial value
+        final large = 'x' * 200000; // 200KB
+        await processor.set('key', large, 'test-req');
+        
+        // Try to append more than remaining space
+        final addition = 'x' * 70000; // 70KB - total would be 270KB > 256KB
+        final command = Command(id: 'req-1', op: 'APPEND', key: 'key', value: addition);
+        final response = await processor.processCommand(command);
+        
+        expect(response.status, equals(ResponseStatus.error));
+        expect(response.errorCode, equals(ErrorCode.payloadTooLarge));
+      });
+
+      test('APPEND with empty value works correctly', () async {
+        await processor.set('key', 'hello', 'test-req');
+        
+        final command = Command(id: 'req-1', op: 'APPEND', key: 'key', value: '');
+        final response = await processor.processCommand(command);
+        
+        expect(response.status, equals(ResponseStatus.ok));
+        expect(response.value, equals('hello'));
+      });
+
+      test('handles multi-byte UTF-8 characters correctly', () async {
+        await processor.set('key', 'Hello ', 'test-req');
+        
+        final command = Command(id: 'req-1', op: 'APPEND', key: 'key', value: '🚀 こんにちは');
+        final response = await processor.processCommand(command);
+        
+        expect(response.status, equals(ResponseStatus.ok));
+        expect(response.value, equals('Hello 🚀 こんにちは'));
+      });
+    });
 
     group('processCommand', () {
       test('handles GET command', () async {

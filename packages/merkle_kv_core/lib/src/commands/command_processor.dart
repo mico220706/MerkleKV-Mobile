@@ -4,6 +4,7 @@ import '../config/merkle_kv_config.dart';
 import '../storage/storage_interface.dart';
 import '../storage/storage_entry.dart';
 import '../utils/numeric_operations.dart';
+import '../utils/string_operations.dart';
 import 'command.dart';
 import 'response.dart';
 
@@ -29,6 +30,12 @@ abstract class CommandProcessor {
 
   /// Decrements a numeric value by the specified amount.
   Future<Response> decrement(String key, int amount, String id);
+
+  /// Appends a value to the end of existing string.   
+  Future<Response> append(String key, String value, String id);
+
+  /// Prepends a value to the beginning of existing string. 
+  Future<Response> prepend(String key, String value, String id);
 }
 
 /// Cache entry for idempotent request handling.
@@ -148,6 +155,28 @@ class CommandProcessorImpl implements CommandProcessor {
             }
           }
           break;
+        case 'APPEND':  
+          if (command.key == null) {
+            response = Response.invalidRequest(
+                command.id, 'Missing key for APPEND operation');
+          } else if (command.value == null) {
+            response = Response.invalidRequest(
+                command.id, 'Missing value for APPEND operation');
+          } else {
+            response = await append(command.key!, command.value.toString(), command.id);
+          }
+          break;
+        case 'PREPEND':  
+          if (command.key == null) {
+            response = Response.invalidRequest(
+                command.id, 'Missing key for PREPEND operation');
+          } else if (command.value == null) {
+            response = Response.invalidRequest(
+                command.id, 'Missing value for PREPEND operation');
+          } else {
+            response = await prepend(command.key!, command.value.toString(), command.id);
+          }
+          break;
         default:
           response = Response.invalidRequest(
             command.id,
@@ -253,6 +282,16 @@ class CommandProcessorImpl implements CommandProcessor {
     return await _performNumericOperation(key, amount, false, id);
   }
 
+  @override
+  Future<Response> append(String key, String value, String id) async {
+    return await _performStringOperation(key, value, true, id);
+  }
+
+  @override
+  Future<Response> prepend(String key, String value, String id) async {
+    return await _performStringOperation(key, value, false, id);
+  }
+
   Future<Response> _performNumericOperation(
     String key,
     int amount,
@@ -307,6 +346,67 @@ class CommandProcessorImpl implements CommandProcessor {
       return Response.internalError(id, 'Numeric operation failed: $e');
     }
   }
+
+  Future<Response> _performStringOperation(
+    String key,
+    String value,
+    bool isAppend,
+    String requestId,
+  ) async {
+    try {
+      // Validate key size
+      final keyBytes = utf8.encode(key);
+      if (keyBytes.length > _maxKeyBytes) {
+        return Response.payloadTooLarge(requestId);
+      }
+
+      // Validate input value is valid UTF-8
+      if (!StringOperations.isValidUtf8String(value)) {
+        return Response.invalidRequest(requestId, 'Invalid UTF-8 in value parameter');
+      }
+
+      // Get current value
+      final current = await _storage.get(key);
+      String? existingValue;
+
+      if (current != null && !current.isTombstone) {
+        existingValue = current.value;
+      }
+      // If key doesn't exist or is tombstone, treat as empty string (per §4.6)
+
+      // Perform safe concatenation
+      final String? result;
+      if (isAppend) {
+        result = StringOperations.safeAppend(existingValue, value);
+      } else {
+        result = StringOperations.safePrepend(value, existingValue);
+      }
+
+      if (result == null) {
+        // Would exceed size limit
+        final currentSize = StringOperations.getUtf8ByteSize(existingValue ?? '');
+        final valueSize = StringOperations.getUtf8ByteSize(value);
+        return Response.payloadTooLarge(requestId);
+      }
+
+      // Create new storage entry with version vector
+      final entry = StorageEntry.value(
+        key: key,
+        value: result,
+        timestampMs: DateTime.now().millisecondsSinceEpoch,
+        nodeId: _config.nodeId,
+        seq: _nextSequenceNumber(),
+      );
+
+      // Store the new value
+      await _storage.put(key, entry);
+
+      return Response.ok(id: requestId, value: result);
+    } catch (e) {
+      return Response.internalError(requestId, 'String operation failed: $e');
+    }
+  }
+
 
   int _nextSequenceNumber() {
     return ++_sequenceNumber;
