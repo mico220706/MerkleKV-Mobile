@@ -172,6 +172,31 @@ Production-ready message broker with security features:
 - **TLS Encryption**: Secure communication between clients and broker
 - **Persistence**: Message persistence and replay capabilities
 
+### Transport Layer: MQTT (Locked Spec §6)
+
+- **Sessions:** Clean Start=false; Session Expiry=86400s (24h) for recovery of missed messages.
+- **Keep Alive:** 60s.
+- **QoS/Retain:** All app messages are QoS=1, retain=false; broker QoS downgrades are logged.
+- **Reconnect:** Exponential backoff 1s→32s with ±20% jitter; bounded publish queue flushes after reconnection.
+- **LWT:** `{topicPrefix}/{clientId}/res`, payload `{"status":"offline","timestamp_ms":...}`, QoS=1, retain=false; suppressed on graceful disconnect.
+- **TLS:** Enforced when credentials are present; hostname/SAN validation is required.
+
+### Configuration Source of Truth (Locked Spec §11)
+
+- `MerkleKVConfig` governs all MQTT/session parameters and storage toggles.
+- Defaults: `keepAlive=60`, `sessionExpiry=86400`, `skewMaxFutureMs=300000`, `tombstoneRetentionHours=24`.
+- Validation prevents invalid ports/timeouts and enforces storage path when persistence is enabled.
+
+### Command Correlation Layer (Locked Spec §3.1-3.2)
+
+- **Request/Response Correlation:** UUIDv4 generation for empty IDs; ID validation (1-64 chars, UUIDv4 format for 36-char IDs).
+- **Timeouts:** Monotonic timers with operation-specific durations (10s single-key, 20s multi-key, 30s sync).
+- **Deduplication Cache:** 10-minute TTL with LRU eviction (max 1000 entries); idempotent replay for duplicate requests.
+- **Payload Validation:** UTF-8 byte length ≤ 512 KiB; early rejection with PAYLOAD_TOO_LARGE error.
+- **Error Handling:** Standardized codes (INVALID_REQUEST=100, TIMEOUT=101, IDEMPOTENT_REPLAY=102, PAYLOAD_TOO_LARGE=103, INTERNAL_ERROR=199).
+- **Async API:** Future-based interface over MQTT publish/subscribe with structured lifecycle logging.
+- **Late Response Handling:** Responses arriving after timeout are cached if within dedup window but don't complete expired futures.
+
 ## 📡 Communication Patterns
 
 ### Topic Structure
@@ -229,25 +254,120 @@ merkle_kv_mobile/
 
 ## 🗄️ Storage Architecture
 
-### Memory Storage
+The storage engine provides efficient key-value storage with conflict resolution and optional persistence, implementing Locked Spec requirements for distributed consistency.
 
-- **HashMap-based**: Fast in-memory key-value store
-- **Thread-safe**: Concurrent access protection
-- **TTL Support**: Optional time-to-live for keys
-- **Size Limits**: Configurable memory usage limits
+### StorageEntry Model (Locked Spec §5.1, §5.6)
 
-### Persistent Storage
+The core data structure for all stored entries:
 
-- **File-based**: Platform-specific file storage
-- **Journaling**: Write-ahead log for crash recovery
-- **Compaction**: Periodic cleanup of old entries
-- **Encryption**: Optional at-rest encryption
+```dart
+class StorageEntry {
+  final String key;           // UTF-8 validated key
+  final String? value;        // null for tombstones
+  final int timestampMs;      // Last-Write-Wins ordering
+  final bool isTombstone;     // Deletion marker
+  
+  // Constructor with automatic validation
+  StorageEntry({
+    required this.key,
+    this.value,
+    required this.timestampMs,
+    this.isTombstone = false,
+  });
+}
+```
 
-### Hybrid Approach
+### StorageInterface API
 
-- **Write-through Cache**: Memory + persistence
-- **Lazy Loading**: Load data on demand
-- **Background Sync**: Asynchronous persistence
+Standardized interface for all storage implementations:
+
+```dart
+abstract class StorageInterface {
+  Future<StorageEntry?> get(String key);
+  Future<void> set(String key, String value, {int? timestampMs});
+  Future<void> delete(String key, {int? timestampMs});
+  Future<Map<String, StorageEntry>> getAll();
+  Future<void> clear();
+  Future<void> close();
+}
+```
+
+### InMemoryStorage Implementation
+
+High-performance in-memory storage with LWW conflict resolution:
+
+- **HashMap-based**: `Map<String, StorageEntry>` for O(1) access
+- **Thread-safe**: Protected by Dart isolate model
+- **LWW Resolution**: Automatic timestamp-based conflict resolution per Locked Spec §5.1
+- **Tombstone Management**: Retains deletion markers for distributed consistency (Locked Spec §5.6)
+- **UTF-8 Validation**: Enforces UTF-8 encoding for keys and values
+- **Size Constraints**: Validates against Locked Spec §11 limits (512 KiB payloads)
+
+### Persistent Storage (Optional)
+
+File-based persistence layer for data durability:
+
+- **JSON Serialization**: Human-readable storage format
+- **Atomic Writes**: File operations with temporary file + rename pattern
+- **Lazy Loading**: Loads data from disk on first access
+- **Write-through**: Immediate persistence on data changes
+- **Crash Recovery**: Maintains data integrity across application restarts
+
+### StorageFactory Pattern
+
+Dynamic storage selection based on configuration:
+
+```dart
+class StorageFactory {
+  static StorageInterface create(MerkleKVConfig config) {
+    if (config.persistentStoragePath != null) {
+      return PersistentStorage(
+        storagePath: config.persistentStoragePath!,
+        backingStore: InMemoryStorage(),
+      );
+    }
+    return InMemoryStorage();
+  }
+}
+```
+
+### Last-Write-Wins (LWW) Conflict Resolution
+
+Implements Locked Spec §5.1 requirements:
+
+1. **Timestamp Ordering**: Higher `timestampMs` values always win
+2. **Automatic Resolution**: No manual intervention required
+3. **Replication-Safe**: Consistent resolution across all devices
+4. **Clock Skew Tolerance**: Handles reasonable time differences between devices
+
+### Tombstone Lifecycle (Locked Spec §5.6)
+
+Manages deletion markers for distributed consistency:
+
+1. **Creation**: DELETE operations create tombstone entries with `isTombstone=true`
+2. **Retention**: Tombstones retained for configurable period (default: 24 hours)
+3. **Replication**: Tombstones propagate to ensure consistent deletions
+4. **Cleanup**: Background process removes expired tombstones
+5. **Conflict Resolution**: Tombstones participate in LWW resolution
+
+### Storage Configuration
+
+Storage behavior controlled by `MerkleKVConfig`:
+
+```dart
+final config = MerkleKVConfig(
+  // Optional persistence
+  persistentStoragePath: '/path/to/storage',
+  
+  // Tombstone retention
+  tombstoneRetentionHours: 24,
+  
+  // Size limits (Locked Spec §11)
+  maxPayloadSizeKB: 512,
+);
+
+final storage = StorageFactory.create(config);
+```
 
 ## 🔒 Security Model
 

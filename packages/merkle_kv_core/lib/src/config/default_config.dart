@@ -9,7 +9,7 @@ class DefaultConfig {
   }) {
     return MerkleKVConfig(
       mqttHost: 'localhost',
-      mqttPort: 1883,
+      mqttUseTls: false,
       clientId: clientId,
       nodeId: nodeId ?? clientId,
       topicPrefix: 'merkle_kv_mobile_dev',
@@ -24,7 +24,7 @@ class DefaultConfig {
     required String nodeId,
     String? username,
     String? password,
-    int mqttPort = 8883,
+    int? mqttPort,
     String topicPrefix = 'merkle_kv_mobile',
   }) {
     return MerkleKVConfig(
@@ -49,7 +49,7 @@ class DefaultConfig {
   }) {
     return MerkleKVConfig(
       mqttHost: mqttHost,
-      mqttPort: 1883,
+      mqttUseTls: false,
       clientId: clientId,
       nodeId: nodeId ?? clientId,
       topicPrefix: 'merkle_kv_mobile_test',
@@ -64,7 +64,7 @@ class DefaultConfig {
   }) {
     return MerkleKVConfig(
       mqttHost: 'offline',
-      mqttPort: 1883,
+      mqttUseTls: false,
       clientId: clientId,
       nodeId: nodeId ?? clientId,
       topicPrefix: 'merkle_kv_mobile_offline',
@@ -84,7 +84,6 @@ class DefaultConfig {
   }) {
     return MerkleKVConfig(
       mqttHost: mqttHost,
-      mqttPort: useTls ? 8883 : 1883,
       username: username,
       password: password,
       mqttUseTls: useTls,
@@ -108,7 +107,6 @@ class DefaultConfig {
   }) {
     return MerkleKVConfig(
       mqttHost: mqttHost,
-      mqttPort: 1883,
       username: username,
       password: password,
       mqttUseTls: false, // Minimal TLS overhead

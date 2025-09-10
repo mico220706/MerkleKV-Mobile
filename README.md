@@ -34,6 +34,92 @@ The system provides:
 - Efficient Merkle tree-based anti-entropy synchronization
 - Device-specific message routing using client IDs
 
+## What's New (Phase 1 — Core)
+
+- **MerkleKVConfig** (Locked Spec §11): Centralized, immutable configuration with strict validation, secure credential handling, JSON (sans secrets), `copyWith`, and defaults:
+  - `keepAliveSeconds=60`, `sessionExpirySeconds=86400`, `skewMaxFutureMs=300000`, `tombstoneRetentionHours=24`.
+- **MQTT Client Layer** (Locked Spec §6): Connection lifecycle, exponential backoff (1s→32s, jitter ±20%), session persistence (Clean Start=false, Session Expiry=24h), LWT, QoS=1 & retain=false enforcement, TLS when credentials present.
+- **Command Correlation Layer** (Locked Spec §3.1-3.2): Request/response correlation with UUIDv4 generation, operation-specific timeouts (10s/20s/30s), deduplication cache (10min TTL, LRU eviction), payload size validation (512 KiB limit), structured logging, and async/await API over MQTT.
+- **Command Processor** (Locked Spec §4.1-§4.4): Core command processing with GET/SET/DEL operations, UTF-8 size validation (keys ≤256B, values ≤256KiB), version vector generation with sequence numbers, idempotency cache with TTL and LRU eviction, comprehensive error handling with standardized error codes.
+- **Storage Engine** (Locked Spec §5.1, §5.6, §8): In-memory key-value store with UTF-8 support, Last-Write-Wins conflict resolution using `(timestampMs, nodeId)` ordering, tombstone management with 24-hour retention and garbage collection, optional persistence with SHA-256 checksums and corruption recovery, size constraints (keys ≤256B, values ≤256KiB UTF-8).
+
+### Storage Engine Features
+
+The core storage engine provides:
+
+- **In-memory key-value operations** with concurrent-safe access
+- **Last-Write-Wins conflict resolution** per Locked Spec §5.1:
+  - Primary ordering by `timestampMs` (wall clock)
+  - Tiebreaker by `nodeId` (lexicographic)
+  - Duplicate detection for identical version vectors
+- **Tombstone lifecycle management** per Locked Spec §5.6:
+  - Delete operations create tombstones (24-hour retention)
+  - Automatic garbage collection of expired tombstones
+  - Read-your-writes consistency (tombstones return null)
+- **Optional persistence** with integrity guarantees:
+  - Append-only JSON Lines format with SHA-256 checksums
+  - Corruption recovery (skip bad records, continue loading)
+  - Atomic file operations prevent data loss
+- **UTF-8 size validation** per Locked Spec §11:
+  - Keys: ≤256 bytes UTF-8 encoded
+  - Values: ≤256 KiB bytes UTF-8 encoded
+  - Multi-byte character boundary handling
+
+### Quick Storage Example
+
+```dart
+import 'package:merkle_kv_core/merkle_kv_core.dart';
+
+// Configuration with persistence disabled (in-memory only)
+final config = MerkleKVConfig(
+  mqttHost: 'broker.example.com',
+  clientId: 'mobile-device-1',
+  nodeId: 'device-uuid-123',
+  persistenceEnabled: false,
+);
+
+// Create storage instance
+final storage = StorageFactory.create(config);
+await storage.initialize();
+
+// Store data with version vector
+final entry = StorageEntry.value(
+  key: 'user:123',
+  value: 'John Doe',
+  timestampMs: DateTime.now().millisecondsSinceEpoch,
+  nodeId: config.nodeId,
+  seq: 1,
+);
+
+await storage.put('user:123', entry);
+
+// Retrieve data
+final retrieved = await storage.get('user:123');
+print(retrieved?.value); // "John Doe"
+
+// Clean up
+await storage.dispose();
+```
+
+For persistence-enabled storage:
+
+```dart
+// Configuration with persistence enabled
+final persistentConfig = MerkleKVConfig(
+  mqttHost: 'broker.example.com',
+  clientId: 'mobile-device-1',
+  nodeId: 'device-uuid-123',
+  persistenceEnabled: true,
+  storagePath: '/app/storage', // Platform-appropriate path
+);
+
+// Storage survives app restarts
+final persistentStorage = StorageFactory.create(persistentConfig);
+await persistentStorage.initialize(); // Loads existing data
+
+// Data persists across sessions with integrity checks
+```
+
 ## 🏗️ Architecture
 
 ### Communication Model
@@ -57,6 +143,24 @@ MerkleKV Mobile uses a pure MQTT communication model:
    ```text
    merkle_kv_mobile/replication/events
    ```
+
+### Topic Scheme (Canonical)
+
+The canonical topic scheme follows Locked Spec §2 with strict validation:
+
+```dart
+import 'package:merkle_kv_core/merkle_kv_core.dart';
+
+final scheme = TopicScheme.create('prod/cluster-a', 'device-123');
+
+print(scheme.commandTopic);    // prod/cluster-a/device-123/cmd
+print(scheme.responseTopic);   // prod/cluster-a/device-123/res  
+print(scheme.replicationTopic); // prod/cluster-a/replication/events
+
+// Topic router manages subscribe/publish with auto re-subscribe
+final router = TopicRouterImpl(config, mqttClient);
+await router.subscribeToCommands((topic, payload) => handleCommand(payload));
+```
 
 ### Data Flow
 
@@ -187,31 +291,165 @@ MQTT Message → JSON Parsing → Command Validation → Command Execution →
 Response Generation → Response Publishing → (Optional) Replication
 ```
 
-## 🛠️ Configuration
+## Configuration (MerkleKVConfig)
+
+Locked Spec §11 defaults are applied automatically. Secrets are never serialized.
 
 ```dart
-final config = MerkleKVConfig(
-  // MQTT Connection
-  mqttBroker: 'broker.example.com',
-  mqttPort: 1883,
-  mqttUsername: 'user',  // Optional
-  mqttPassword: 'pass',  // Optional
-  
-  // Device Identity
-  clientId: 'mobile-device-123',
-  nodeId: 'user-456-device',
-  
-  // Topics
-  topicPrefix: 'merkle_kv_mobile',
-  
-  // Storage
+import 'package:merkle_kv_core/merkle_kv_core.dart';
+
+final cfg = MerkleKVConfig(
+  mqttHost: 'broker.example.com',
+  clientId: 'android-123',
+  nodeId: 'node-01',
+  mqttUseTls: true,           // TLS recommended especially with credentials
+  username: 'user',           // sensitive: excluded from toJson()
+  password: 'pass',           // sensitive: excluded from toJson()
   persistenceEnabled: true,
-  storagePath: '/data/local/tmp/merkle_kv',
-  
-  // Replication
-  replicationEnabled: true,
-  antientropyIntervalSeconds: 300,
+  storagePath: '/data/merklekv',
 );
+
+// JSON does not include secrets
+final json = cfg.toJson();
+final restored = MerkleKVConfig.fromJson(json, username: 'user', password: 'pass');
+```
+
+**Defaults (per §11):** keepAlive=60, sessionExpiry=86400, skewMaxFutureMs=300000, tombstoneRetentionHours=24.
+
+**Validation:** clientId/nodeId length ∈ [1,128]; mqttPort ∈ [1,65535]; timeouts > 0; storagePath required when persistence is enabled.
+
+**Security:** If credentials are provided and mqttUseTls=false, a security warning is emitted.
+
+## MQTT Client Usage
+
+The client enforces QoS=1 and retain=false for application messages. LWT is configured automatically and suppressed on graceful disconnect.
+
+```dart
+import 'package:merkle_kv_core/merkle_kv_core.dart';
+
+final client = MqttClientImpl(cfg); // uses MerkleKVConfig
+
+// Observe connection state
+final sub = client.connectionState.listen((s) {
+  // disconnected, connecting, connected, disconnecting
+});
+
+// Connect (<=10s typical)
+await client.connect();
+
+// Subscribe
+await client.subscribe('${cfg.topicPrefix}/${cfg.clientId}/cmd', (topic, payload) {
+  // handle command
+});
+
+// Publish (QoS=1, retain=false enforced)
+await client.publish('${cfg.topicPrefix}/${cfg.clientId}/res', '{"status":"ok"}');
+
+// Graceful disconnect (suppresses LWT)
+await client.disconnect();
+
+// Cleanup
+await sub.cancel();
+```
+
+**Reconnect:** Exponential backoff 1s→2s→4s→…→32s with ±20% jitter. Messages published during disconnect are queued (bounded) and flushed after reconnect.
+
+**Sessions:** Clean Start=false; Session Expiry=24h.
+
+**TLS:** Automatically enforced when credentials are present; server cert validation required.
+
+## Command Correlation Usage
+
+The CommandCorrelator provides async/await API over MQTT with automatic ID generation, timeouts, and deduplication.
+
+```dart
+import 'package:merkle_kv_core/merkle_kv_core.dart';
+
+// Create correlator with MQTT publish function
+final correlator = CommandCorrelator(
+  publishCommand: (jsonPayload) async {
+    await mqttClient.publish('${config.topicPrefix}/${targetClientId}/cmd', jsonPayload);
+  },
+  logger: (entry) => print('Request lifecycle: ${entry.toString()}'),
+);
+
+// Send commands with automatic correlation
+final command = Command(
+  id: '', // Empty ID will generate UUIDv4 automatically
+  op: 'GET',
+  key: 'user:123',
+);
+
+try {
+  final response = await correlator.send(command);
+  if (response.isSuccess) {
+    print('Result: ${response.value}');
+  } else {
+    print('Error: ${response.error} (${response.errorCode})');
+  }
+} catch (e) {
+  print('Request failed: $e');
+}
+
+// Handle incoming responses
+mqttClient.subscribe('${config.topicPrefix}/${config.clientId}/res', (topic, payload) {
+  correlator.onResponse(payload);
+});
+
+// Cleanup
+correlator.dispose();
+```
+
+**Features:**
+- **Automatic UUIDv4 generation** when command ID is empty
+- **Operation-specific timeouts**: 10s (single-key), 20s (multi-key), 30s (sync)
+- **Deduplication cache**: 10-minute TTL with LRU eviction for idempotent replies
+- **Payload validation**: Rejects commands > 512 KiB
+- **Structured logging**: Request lifecycle with timing and error codes
+- **Late response handling**: Caches responses that arrive after timeout
+
+## Command Processor Usage
+
+The CommandProcessor handles core GET/SET/DEL operations with validation and idempotency.
+
+```dart
+import 'package:merkle_kv_core/merkle_kv_core.dart';
+
+// Create processor with config and storage
+final config = MerkleKVConfig.create(
+  mqttHost: 'broker.example.com',
+  clientId: 'device-123',
+  nodeId: 'node-uuid',
+);
+final storage = StorageFactory.create(config);
+await storage.initialize();
+
+final processor = CommandProcessorImpl(config, storage);
+
+// Process commands directly
+final getCmd = Command(id: 'req-1', op: 'GET', key: 'user:123');
+final getResponse = await processor.processCommand(getCmd);
+
+final setCmd = Command(id: 'req-2', op: 'SET', key: 'user:123', value: 'John Doe');
+final setResponse = await processor.processCommand(setCmd);
+
+final delCmd = Command(id: 'req-3', op: 'DEL', key: 'user:123');
+final delResponse = await processor.processCommand(delCmd);
+
+// Or use individual methods
+final directGet = await processor.get('user:456');
+final directSet = await processor.set('user:456', 'Jane Doe');
+final directDel = await processor.delete('user:456');
+
+print('Response: ${directGet.status} - ${directGet.value}');
+```
+
+**Features:**
+- **UTF-8 validation**: Keys ≤256B, values ≤256KiB with proper multi-byte handling
+- **Version vectors**: Automatic generation with timestamps and sequence numbers
+- **Idempotency**: 10-minute TTL cache with LRU eviction for duplicate requests
+- **Error handling**: Standardized codes (INVALID_REQUEST=100, NOT_FOUND=102, PAYLOAD_TOO_LARGE=103)
+- **Thread safety**: Atomic sequence number generation for concurrent operations
 
 final store = MerkleKVMobile(config);
 await store.connect();
@@ -350,6 +588,21 @@ The MerkleKV Mobile project structure has been created and includes:
 - **Docker** (for MQTT broker)
 - **Git** for version control
 
+## Quick Start (Dev)
+
+```bash
+# 1) Bootstrap monorepo
+melos bootstrap
+
+# 2) Static analysis & format checks
+dart analyze
+dart format --output=none --set-exit-if-changed .
+
+# 3) Run tests (pure Dart + Flutter where applicable)
+dart test -p vm packages/merkle_kv_core
+flutter test
+```
+
 ### Development Setup
 
 1. **Clone and Bootstrap the Project**:
@@ -458,6 +711,17 @@ melos run test
 # Setup development environment
 ./scripts/dev/setup.sh
 ```
+
+### Code Formatting
+
+This project enforces strict Dart formatting in CI.  
+Before committing or opening a PR, always run:
+
+```bash
+dart format .
+```
+
+If formatting is not applied, CI will fail.
 
 ## ⚡ Next Steps
 

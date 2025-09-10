@@ -65,6 +65,38 @@ deterministic behavior.
    npm run dev
    ```
 
+## Build & Test (Core)
+
+```bash
+# Bootstrap dependencies
+melos bootstrap
+
+# Lint & format (strict)
+dart analyze
+dart format --output=none --set-exit-if-changed .
+
+# Tests (pure Dart for core; Flutter tests where applicable)
+dart test -p vm packages/merkle_kv_core
+flutter test
+```
+
+**Notes:**
+
+- Do not log secrets; use MerkleKVConfig.toString() (masked).
+- For MQTT integration tests, ensure a broker is available (CI runs Mosquitto).
+
+### Formatting Requirement
+
+All Dart code must be formatted using the official Dart formatter.  
+Run the following before pushing:
+
+```bash
+dart format .
+dart format --output=none --set-exit-if-changed .
+```
+
+PRs with unformatted code will be rejected by CI.
+
 ## 📋 Contribution Process
 
 ### 1. Issue First Approach

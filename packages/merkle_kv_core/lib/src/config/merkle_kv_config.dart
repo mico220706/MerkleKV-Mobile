@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'invalid_config_exception.dart';
 
 /// Centralized, immutable configuration for MerkleKV Mobile client.
@@ -139,6 +141,54 @@ class MerkleKVConfig {
       mqttUseTls: tls,
       clientId: clientId,
       nodeId: nodeId,
+    );
+  }
+
+  /// Convenience factory method that forwards to the main constructor.
+  ///
+  /// This method provides a static factory interface for test compatibility
+  /// while maintaining all the validation and defaults of the main constructor.
+  /// Automatically provides a temporary storage path when persistence is enabled
+  /// but no storage path is specified.
+  static MerkleKVConfig create({
+    required String mqttHost,
+    int? mqttPort,
+    String? username,
+    String? password,
+    bool mqttUseTls = false,
+    required String clientId,
+    required String nodeId,
+    String topicPrefix = '',
+    int keepAliveSeconds = 60,
+    int sessionExpirySeconds = 86400,
+    int skewMaxFutureMs = 300000,
+    int tombstoneRetentionHours = 24,
+    bool persistenceEnabled = false,
+    String? storagePath,
+  }) {
+    // Auto-supply temp storage path if persistence enabled but no path provided
+    String? resolvedStoragePath = storagePath;
+    if (persistenceEnabled && (storagePath == null || storagePath.isEmpty)) {
+      final dir = Directory.systemTemp.createTempSync('merkle_kv_');
+      resolvedStoragePath =
+          '${dir.path}${Platform.pathSeparator}merkle_kv_storage.jsonl';
+    }
+
+    return MerkleKVConfig(
+      mqttHost: mqttHost,
+      mqttPort: mqttPort,
+      username: username,
+      password: password,
+      mqttUseTls: mqttUseTls,
+      clientId: clientId,
+      nodeId: nodeId,
+      topicPrefix: topicPrefix,
+      keepAliveSeconds: keepAliveSeconds,
+      sessionExpirySeconds: sessionExpirySeconds,
+      skewMaxFutureMs: skewMaxFutureMs,
+      tombstoneRetentionHours: tombstoneRetentionHours,
+      persistenceEnabled: persistenceEnabled,
+      storagePath: resolvedStoragePath,
     );
   }
 
