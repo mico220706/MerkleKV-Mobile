@@ -2,19 +2,13 @@ name: merkle_kv_core
 description: A distributed key-value store optimized for mobile edge devices with MQTT-based communication
 version: 0.0.1
 
-
 environment:
   sdk: '>=3.0.0 <4.0.0'
-  flutter: '>=3.10.0'
 
 dependencies:
-  flutter:
-    sdk: flutter
   mqtt_client: ^10.0.0
   cbor: ^6.0.0
   crypto: ^3.0.3
-  path_provider: ^2.1.0
-  shared_preferences: ^2.2.0
 
 dev_dependencies:
   test: ^1.25.2

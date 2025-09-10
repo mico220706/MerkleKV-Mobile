@@ -210,8 +210,16 @@ jobs:
       - name: 🔧 Install Melos (Monorepo Manager)
         run: dart pub global activate melos
         
-      - name: 📦 Bootstrap Monorepo Dependencies
-        run: melos bootstrap --verbose
+      - name: 📦 Bootstrap Non-Flutter Packages First
+        run: |
+          echo "Bootstrapping pure Dart packages..."
+          # Bootstrap packages first (these should work without Flutter)
+          melos bootstrap --scope="packages/**" --verbose || true
+        
+      - name: 📦 Bootstrap Remaining Dependencies
+        run: |
+          echo "Bootstrapping remaining packages including Flutter apps..."
+          melos bootstrap --verbose
         
       # -----------------------------------------------------------------------
       # Code Formatting Validation
@@ -336,6 +344,9 @@ jobs:
       - name: 🔧 Install Dependencies
         run: |
           dart pub global activate melos
+          # Bootstrap packages first (these should work without Flutter)
+          melos bootstrap --scope="packages/**" --verbose || true
+          # Then bootstrap everything else
           melos bootstrap --verbose
           
       # -----------------------------------------------------------------------
@@ -734,6 +745,9 @@ jobs:
           
           # Install and bootstrap dependencies
           dart pub global activate melos
+          # Bootstrap packages first (these should work without Flutter)
+          melos bootstrap --scope="packages/**" --verbose || true
+          # Then bootstrap everything else 
           melos bootstrap --verbose
           
           # Final static analysis validation
