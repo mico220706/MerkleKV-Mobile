@@ -7,7 +7,7 @@ import 'package:test/test.dart';
 void main() {
   group('ReplicationEvent', () {
     test('value constructor sets tombstone to false', () {
-      final event = ReplicationEvent.value(
+      final event = const ReplicationEvent.value(
         key: 'test-key',
         nodeId: 'node-1',
         seq: 42,
@@ -20,7 +20,7 @@ void main() {
     });
 
     test('tombstone constructor sets tombstone to true and value to null', () {
-      final event = ReplicationEvent.tombstone(
+      final event = const ReplicationEvent.tombstone(
         key: 'test-key',
         nodeId: 'node-1',
         seq: 42,
@@ -117,7 +117,7 @@ void main() {
     });
 
     test('toJson creates map with deterministic key order', () {
-      final event = ReplicationEvent.value(
+      final event = const ReplicationEvent.value(
         key: 'test-key',
         nodeId: 'node-1',
         seq: 42,
@@ -135,7 +135,7 @@ void main() {
     });
 
     test('toJson omits value for tombstone events', () {
-      final event = ReplicationEvent.tombstone(
+      final event = const ReplicationEvent.tombstone(
         key: 'test-key',
         nodeId: 'node-1',
         seq: 42,
@@ -149,7 +149,7 @@ void main() {
     });
 
     test('equality works correctly', () {
-      final event1 = ReplicationEvent.value(
+      final event1 = const ReplicationEvent.value(
         key: 'test-key',
         nodeId: 'node-1',
         seq: 42,
@@ -157,7 +157,7 @@ void main() {
         value: 'test-value',
       );
 
-      final event2 = ReplicationEvent.value(
+      final event2 = const ReplicationEvent.value(
         key: 'test-key',
         nodeId: 'node-1',
         seq: 42,
@@ -165,7 +165,7 @@ void main() {
         value: 'test-value',
       );
 
-      final event3 = ReplicationEvent.value(
+      final event3 = const ReplicationEvent.value(
         key: 'different-key',
         nodeId: 'node-1',
         seq: 42,
@@ -181,7 +181,7 @@ void main() {
 
   group('CborSerializer', () {
     test('round-trip determinism for value events', () {
-      final originalEvent = ReplicationEvent.value(
+      final originalEvent = const ReplicationEvent.value(
         key: 'test-key',
         nodeId: 'node-1',
         seq: 42,
@@ -200,7 +200,7 @@ void main() {
     });
 
     test('round-trip determinism for tombstone events', () {
-      final originalEvent = ReplicationEvent.tombstone(
+      final originalEvent = const ReplicationEvent.tombstone(
         key: 'test-key',
         nodeId: 'node-1',
         seq: 42,
@@ -215,7 +215,7 @@ void main() {
     });
 
     test('deterministic encoding produces identical bytes', () {
-      final event = ReplicationEvent.value(
+      final event = const ReplicationEvent.value(
         key: 'test-key',
         nodeId: 'node-1',
         seq: 42,
@@ -230,7 +230,7 @@ void main() {
     });
 
     test('handles Unicode/UTF-8 correctly', () {
-      final event = ReplicationEvent.value(
+      final event = const ReplicationEvent.value(
         key: 'emoji-key-🔑',
         nodeId: 'node-🌟',
         seq: 42,
@@ -355,7 +355,7 @@ void main() {
 
     test('cross-device deterministic golden vector', () {
       // Golden test vector - this exact event should always produce the same CBOR bytes
-      final goldenEvent = ReplicationEvent.value(
+      final goldenEvent = const ReplicationEvent.value(
         key: 'golden-key',
         nodeId: 'golden-node',
         seq: 12345,
@@ -415,7 +415,7 @@ void main() {
     });
 
     test('validates that tombstone events omit value in CBOR', () {
-      final tombstoneEvent = ReplicationEvent.tombstone(
+      final tombstoneEvent = const ReplicationEvent.tombstone(
         key: 'deleted-key',
         nodeId: 'node-1',
         seq: 42,
