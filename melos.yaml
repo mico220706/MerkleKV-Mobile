@@ -30,13 +30,10 @@ scripts:
     exec:
       failFast: true
     packageFilters:
-      dependsOn: "test"
-      ignore: 
-        - "*flutter*"
-        - "flutter_demo"  # Exclude apps without tests
+      flutter: false
       
   test:melos:flutter:
-    description: Run Flutter tests for Flutter packages with tests
+    description: Run Flutter tests for Flutter packages
     run: flutter test --reporter=expanded --timeout=30s
     exec:
       failFast: true

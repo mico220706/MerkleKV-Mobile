@@ -274,6 +274,10 @@ Change events are serialized using CBOR for efficiency and published to the repl
 - **Source Tracking**: Events include source node ID to prevent loops
 - **Idempotency**: Duplicate events with the same sequence number are ignored
 
+### CBOR Serializer (Spec §3.3)
+
+MerkleKV uses deterministic CBOR encoding for replication change events to minimize bandwidth and ensure cross-device consistency. Payloads are strictly limited to ≤ 300 KiB (Spec §11). See [CBOR Replication Event Schema](docs/replication/cbor.md) for schema, examples, and size rules.
+
 ## 💻 Implementation Details
 
 ### Core Components

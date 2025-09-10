@@ -210,8 +210,6 @@ jobs:
       - name: 🔧 Install Melos (Monorepo Manager)
         run: dart pub global activate melos
         
-      - name: 📦 Bootstrap Monorepo Dependencies
-        run: melos bootstrap --verbose
           
       # -----------------------------------------------------------------------
       # Security Vulnerability Assessment
@@ -294,6 +292,9 @@ jobs:
       - name: 🔧 Install Dependencies
         run: |
           dart pub global activate melos
+          # Bootstrap packages first (these should work without Flutter)
+          melos bootstrap --scope="packages/**" --verbose || true
+          # Then bootstrap everything else
           melos bootstrap --verbose
           
       # -----------------------------------------------------------------------
@@ -692,6 +693,9 @@ jobs:
           
           # Install and bootstrap dependencies
           dart pub global activate melos
+          # Bootstrap packages first (these should work without Flutter)
+          melos bootstrap --scope="packages/**" --verbose || true
+          # Then bootstrap everything else 
           melos bootstrap --verbose
           
           # Final static analysis validation
