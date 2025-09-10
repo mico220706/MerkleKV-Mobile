@@ -10,6 +10,13 @@ import '../storage/storage_entry.dart';
 import 'cbor_serializer.dart';
 import 'metrics.dart';
 
+// Add unawaited helper
+void unawaited(Future<void> future) {
+  future.catchError((_) {
+    // Ignore errors in background operations
+  });
+}
+
 /// Status of the replication outbox queue
 class OutboxStatus {
   const OutboxStatus({
@@ -116,6 +123,8 @@ class ReplicationEventPublisherImpl implements ReplicationEventPublisher {
   StreamSubscription<dynamic>? _connectionSubscription;
   bool _initialized = false;
   bool _disposed = false;
+  
+  final Completer<void> _ready = Completer<void>();
 
   ReplicationEventPublisherImpl({
     required MerkleKVConfig config,
@@ -125,7 +134,18 @@ class ReplicationEventPublisherImpl implements ReplicationEventPublisher {
   })  : _config = config,
         _mqttClient = mqttClient,
         _topicScheme = topicScheme,
-        _metrics = metrics ?? const NoOpReplicationMetrics();
+        _metrics = metrics ?? const NoOpReplicationMetrics() {
+    
+    // Trigger background recovery
+    _sequenceManager = SequenceManager(_config);
+    _outboxQueue = OutboxQueue(_config);
+    
+    unawaited(_sequenceManager.recover());
+    unawaited(_outboxQueue.open());
+  }
+
+  /// Future that completes when initialization is ready
+  Future<void> ready() => _ready.future;
 
   @override
   int get currentSequence => _sequenceManager.currentSequence;
@@ -137,21 +157,29 @@ class ReplicationEventPublisherImpl implements ReplicationEventPublisher {
   Future<void> initialize() async {
     if (_initialized) return;
 
-    _sequenceManager = SequenceManager(_config);
     await _sequenceManager.initialize();
-
-    _outboxQueue = OutboxQueue(_config);
     await _outboxQueue.initialize();
 
     // Listen to connection state changes
     _connectionSubscription = _mqttClient.connectionState.listen(_onConnectionStateChanged);
 
     _initialized = true;
+    
+    // Complete the ready future
+    if (!_ready.isCompleted) {
+      _ready.complete();
+    }
+    
     _emitStatus();
   }
 
   @override
   Future<void> publishEvent(ReplicationEvent event) async {
+    if (_disposed) {
+      throw StateError('ReplicationEventPublisher has been disposed.');
+    }
+    
+    await ready();
     _ensureInitialized();
     
     final startTime = DateTime.now();
@@ -184,6 +212,11 @@ class ReplicationEventPublisherImpl implements ReplicationEventPublisher {
 
   @override
   Future<void> flushOutbox() async {
+    if (_disposed) {
+      throw StateError('ReplicationEventPublisher has been disposed.');
+    }
+    
+    await ready();
     _ensureInitialized();
     
     if (!await _isOnline()) {
@@ -191,11 +224,24 @@ class ReplicationEventPublisherImpl implements ReplicationEventPublisher {
     }
 
     final startTime = DateTime.now();
-    final events = await _outboxQueue.drainAll();
+    
+    // Peek at batch instead of draining immediately
+    final batchSize = 100; // Process in batches
+    final batch = await _outboxQueue.peekBatch(batchSize);
+    
+    if (batch.isEmpty) {
+      return; // Safety check - break on empty batch
+    }
+
     var publishedCount = 0;
     final failedEvents = <ReplicationEvent>[];
 
-    for (final event in events) {
+    for (final event in batch) {
+      if (_disposed || !await _isOnline()) {
+        // Safety check - break on disposal or disconnection
+        break;
+      }
+      
       try {
         await _publishEventToMqtt(event);
         publishedCount++;
@@ -207,12 +253,16 @@ class ReplicationEventPublisherImpl implements ReplicationEventPublisher {
       }
     }
 
-    // Re-queue any failed events
-    for (final event in failedEvents) {
-      await _outboxQueue.enqueue(event);
-    }
+    // Only acknowledge the batch if we have events and we're still connected
+    if (batch.isNotEmpty && publishedCount > 0) {
+      // Remove processed events from queue
+      await _outboxQueue.drainAll();
+      
+      // Re-queue any failed events
+      for (final event in failedEvents) {
+        await _outboxQueue.enqueue(event);
+      }
 
-    if (publishedCount > 0) {
       await _outboxQueue.recordFlush();
       
       final flushDuration = DateTime.now().difference(startTime).inMilliseconds;
@@ -233,13 +283,21 @@ class ReplicationEventPublisherImpl implements ReplicationEventPublisher {
     if (_disposed) return;
     
     _disposed = true;
-    await _connectionSubscription?.cancel();
     
-    if (_initialized) {
-      await _sequenceManager.dispose();
-      await _outboxQueue.dispose();
+    // Wait for any ongoing flush to complete
+    try {
+      await _connectionSubscription?.cancel();
+      
+      if (_initialized) {
+        // Complete any pending operations gracefully
+        await _sequenceManager.dispose();
+        await _outboxQueue.dispose();
+      }
+    } catch (e) {
+      // Ignore errors during disposal
     }
     
+    // Close status stream last
     await _statusController.close();
   }
 
@@ -329,6 +387,11 @@ class SequenceManager {
     _initialized = true;
   }
 
+  /// Recovers sequence state from storage
+  Future<void> recover() async {
+    await initialize();
+  }
+
   /// Gets the next sequence number (strictly monotonic)
   int getNextSequence() {
     _ensureInitialized();
@@ -412,9 +475,16 @@ class OutboxQueue {
     _initialized = true;
   }
 
+  /// Opens the outbox for lazy initialization
+  Future<void> open() async {
+    if (!_initialized) {
+      await initialize();
+    }
+  }
+
   /// Adds an event to the outbox queue
   Future<void> enqueue(ReplicationEvent event) async {
-    _ensureInitialized();
+    await _ensureInitializedAsync();
     
     // Apply bounded queue policy - drop oldest if at limit
     if (_queue.length >= _defaultMaxSize) {
@@ -426,6 +496,13 @@ class OutboxQueue {
     if (_config.persistenceEnabled) {
       await _persistOutbox();
     }
+  }
+
+  /// Peek at a batch of events without removing them
+  Future<List<ReplicationEvent>> peekBatch(int maxSize) async {
+    await _ensureInitializedAsync();
+    final endIndex = (_queue.length < maxSize) ? _queue.length : maxSize;
+    return _queue.sublist(0, endIndex);
   }
 
   /// Drains all events from the queue
@@ -450,7 +527,7 @@ class OutboxQueue {
 
   /// Returns current queue size
   Future<int> size() async {
-    _ensureInitialized();
+    await _ensureInitializedAsync();
     return _queue.length;
   }
 
@@ -462,6 +539,13 @@ class OutboxQueue {
   Future<void> dispose() async {
     if (_config.persistenceEnabled && _initialized) {
       await _persistOutbox();
+    }
+  }
+
+  /// Ensures the outbox is initialized asynchronously
+  Future<void> _ensureInitializedAsync() async {
+    if (!_initialized) {
+      await open();
     }
   }
 

@@ -1,7 +1,35 @@
-import 'dart:convert';
 import 'dart:io';
 import 'package:test/test.dart';
 import 'package:merkle_kv_core/merkle_kv_core.dart';
+
+/// Helper to wait for broker readiness
+Future<void> waitForBroker(String host, int port) async {
+  for (var i = 0; i < 10; i++) {
+    try {
+      final socket = await Socket.connect(host, port);
+      await socket.close();
+      return; // Broker is ready
+    } catch (e) {
+      if (i == 9) {
+        throw SkipException('MQTT broker not available on $host:$port after 10 attempts. '
+            'Start with: cd broker/mosquitto && docker-compose up -d');
+      }
+      await Future.delayed(Duration(milliseconds: 500));
+    }
+  }
+}
+
+/// Helper to wait for stable MQTT connection
+Future<void> waitForConnected(MqttClientInterface mqttClient) async {
+  // Wait for connection state to be connected
+  await for (final state in mqttClient.connectionState) {
+    if (state == ConnectionState.connected) {
+      // Additional stabilization wait
+      await Future.delayed(Duration(milliseconds: 200));
+      break;
+    }
+  }
+}
 
 /// Integration test for replication event publishing with real MQTT broker
 /// 
@@ -17,14 +45,8 @@ void main() {
     late InMemoryReplicationMetrics metrics;
 
     setUpAll(() async {
-      // Check if broker is available
-      try {
-        final socket = await Socket.connect('localhost', 1883);
-        await socket.close();
-      } catch (e) {
-        throw SkipException('MQTT broker not available on localhost:1883. '
-            'Start with: cd broker/mosquitto && docker-compose up -d');
-      }
+      // Check if broker is available with retry
+      await waitForBroker('localhost', 1883);
     });
 
     setUp(() async {
@@ -61,12 +83,21 @@ void main() {
       await tempDir.delete(recursive: true);
     });
 
+    tearDownAll(() async {
+      // Ensure all publishers are disposed to avoid race conditions
+      try {
+        await publisher.dispose();
+      } catch (e) {
+        // Ignore disposal errors
+      }
+    });
+
     test('should publish events to real MQTT broker', () async {
       await publisher.initialize();
+      await publisher.ready(); // Wait for persistence initialization
+      
       await mqttClient.connect();
-
-      // Wait for connection to stabilize
-      await Future.delayed(Duration(milliseconds: 100));
+      await waitForConnected(mqttClient); // Wait for stable connection
 
       final event = ReplicationEvent.value(
         key: 'integration-test-key',
@@ -90,10 +121,10 @@ void main() {
 
     test('should handle offline queuing and reconnection', () async {
       await publisher.initialize();
+      await publisher.ready(); // Wait for persistence initialization
+      
       await mqttClient.connect();
-
-      // Wait for connection
-      await Future.delayed(Duration(milliseconds: 100));
+      await waitForConnected(mqttClient); // Wait for stable connection
 
       // Disconnect and publish event (should queue)
       await mqttClient.disconnect(suppressLWT: true);
@@ -115,7 +146,7 @@ void main() {
 
       // Reconnect and flush
       await mqttClient.connect();
-      await Future.delayed(Duration(milliseconds: 100));
+      await waitForConnected(mqttClient); // Wait for stable connection
       await publisher.flushOutbox();
 
       // Verify event was published
@@ -129,6 +160,7 @@ void main() {
 
     test('should persist and recover sequence numbers', () async {
       await publisher.initialize();
+      await publisher.ready(); // Wait for persistence initialization
 
       // Generate some sequence numbers
       final seq1 = publisher.currentSequence;
@@ -144,6 +176,7 @@ void main() {
       );
 
       await newPublisher.initialize();
+      await newPublisher.ready(); // Wait for persistence initialization
       final recoveredSeq = newPublisher.currentSequence;
 
       expect(recoveredSeq, greaterThanOrEqualTo(seq1));
@@ -157,10 +190,10 @@ void main() {
 
     test('should handle large event volumes', () async {
       await publisher.initialize();
+      await publisher.ready(); // Wait for persistence initialization
+      
       await mqttClient.connect();
-
-      // Wait for connection
-      await Future.delayed(Duration(milliseconds: 100));
+      await waitForConnected(mqttClient); // Wait for stable connection
 
       const eventCount = 50;
       final startTime = DateTime.now();

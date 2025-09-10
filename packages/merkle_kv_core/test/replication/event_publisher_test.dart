@@ -132,6 +132,7 @@ void main() {
     group('Event publishing', () {
       setUp(() async {
         await publisher.initialize();
+        await publisher.ready(); // Wait for persistence initialization
         mockClient.simulateConnectionState(ConnectionState.connected);
       });
 
@@ -204,6 +205,7 @@ void main() {
     group('Outbox flushing', () {
       setUp(() async {
         await publisher.initialize();
+        await publisher.ready(); // Wait for persistence initialization
       });
 
       test('should flush events when coming online', () async {
@@ -310,6 +312,7 @@ void main() {
     group('publishStorageEvent', () {
       setUp(() async {
         await publisher.initialize();
+        await publisher.ready(); // Wait for persistence initialization
         mockClient.simulateConnectionState(ConnectionState.connected);
       });
 
