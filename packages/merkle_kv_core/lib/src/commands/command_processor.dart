@@ -297,7 +297,7 @@ class CommandProcessorImpl implements CommandProcessor {
         } else {
           newValue = NumericOperations.safeDecrement(currentInt, amount);
         }
-      } on _NumericOverflowException catch (e) {
+      } on NumericOverflowException catch (e) {
         return Response.rangeOverflow('', e.message);
       }
 

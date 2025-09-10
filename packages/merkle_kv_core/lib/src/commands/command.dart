@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import '../utils/numeric_operations.dart';
+
 /// Represents a command to be sent to MerkleKV.
 ///
 /// Commands follow the Locked Spec §3.1 format with required fields:
