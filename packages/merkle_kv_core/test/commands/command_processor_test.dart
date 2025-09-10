@@ -121,7 +121,7 @@ void main() {
         );
         storage.setEntry('test-key', entry);
 
-        final response = await processor.get('test-key');
+        final response = await processor.get('test-key', 'test-req');
 
         expect(response.status, equals(ResponseStatus.ok));
         expect(response.value, equals('test-value'));
@@ -129,7 +129,7 @@ void main() {
       });
 
       test('returns NOT_FOUND for missing key', () async {
-        final response = await processor.get('missing-key');
+        final response = await processor.get('missing-key', 'test-req');
 
         expect(response.status, equals(ResponseStatus.error));
         expect(response.errorCode, equals(ErrorCode.notFound));
@@ -146,7 +146,7 @@ void main() {
         );
         storage.setEntry('deleted-key', tombstone);
 
-        final response = await processor.get('deleted-key');
+        final response = await processor.get('deleted-key', 'test-req');
 
         expect(response.status, equals(ResponseStatus.error));
         expect(response.errorCode, equals(ErrorCode.notFound));
@@ -156,7 +156,7 @@ void main() {
         // Create key > 256 bytes
         final oversizedKey = 'a' * 257;
 
-        final response = await processor.get(oversizedKey);
+        final response = await processor.get(oversizedKey, 'test-req');
 
         expect(response.status, equals(ResponseStatus.error));
         expect(response.errorCode, equals(ErrorCode.payloadTooLarge));
@@ -166,7 +166,7 @@ void main() {
         // Create key exactly 256 bytes in UTF-8
         final exactKey = 'a' * 256;
 
-        final response = await processor.get(exactKey);
+        final response = await processor.get(exactKey, 'test-req');
 
         expect(response.status, equals(ResponseStatus.error));
         expect(
@@ -178,7 +178,7 @@ void main() {
 
     group('SET operation', () {
       test('stores value successfully', () async {
-        final response = await processor.set('test-key', 'test-value');
+        final response = await processor.set('test-key', 'test-value', 'test-req');
 
         expect(response.status, equals(ResponseStatus.ok));
         expect(response.errorCode, isNull);
@@ -196,8 +196,8 @@ void main() {
       test('generates correct version vector', () async {
         final beforeTime = DateTime.now().millisecondsSinceEpoch;
 
-        await processor.set('key1', 'value1');
-        await processor.set('key2', 'value2');
+        await processor.set('key1', 'value1', 'test-req');
+        await processor.set('key2', 'value2', 'test-req');
 
         final entry1 = storage.getEntry('key1')!;
         final entry2 = storage.getEntry('key2')!;
@@ -218,7 +218,7 @@ void main() {
       test('returns PAYLOAD_TOO_LARGE for oversized key', () async {
         final oversizedKey = 'a' * 257;
 
-        final response = await processor.set(oversizedKey, 'value');
+        final response = await processor.set(oversizedKey, 'value', 'test-req');
 
         expect(response.status, equals(ResponseStatus.error));
         expect(response.errorCode, equals(ErrorCode.payloadTooLarge));
@@ -228,7 +228,7 @@ void main() {
         // Create value > 256 KiB
         final oversizedValue = 'a' * (256 * 1024 + 1);
 
-        final response = await processor.set('key', oversizedValue);
+        final response = await processor.set('key', oversizedValue, 'test-req');
 
         expect(response.status, equals(ResponseStatus.error));
         expect(response.errorCode, equals(ErrorCode.payloadTooLarge));
@@ -238,7 +238,7 @@ void main() {
         // Create value exactly 256 KiB
         final maxValue = 'a' * (256 * 1024);
 
-        final response = await processor.set('key', maxValue);
+        final response = await processor.set('key', maxValue, 'test-req');
 
         expect(response.status, equals(ResponseStatus.ok));
 
@@ -249,7 +249,7 @@ void main() {
       test('handles UTF-8 characters correctly', () async {
         const unicodeValue = '🚀✨🌟'; // Multi-byte UTF-8 characters
 
-        final response = await processor.set('unicode-key', unicodeValue);
+        final response = await processor.set('unicode-key', unicodeValue, 'test-req');
 
         expect(response.status, equals(ResponseStatus.ok));
 
@@ -261,9 +261,9 @@ void main() {
     group('DELETE operation', () {
       test('creates tombstone for existing key', () async {
         // Setup: Store an entry first
-        await processor.set('test-key', 'test-value');
+        await processor.set('test-key', 'test-value', 'test-req');
 
-        final response = await processor.delete('test-key');
+        final response = await processor.delete('test-key', 'test-req');
 
         expect(response.status, equals(ResponseStatus.ok));
         expect(response.errorCode, isNull);
@@ -278,7 +278,7 @@ void main() {
       });
 
       test('returns OK for non-existing key (idempotent)', () async {
-        final response = await processor.delete('missing-key');
+        final response = await processor.delete('missing-key', 'test-req');
 
         expect(response.status, equals(ResponseStatus.ok));
         expect(response.errorCode, isNull);
@@ -291,16 +291,16 @@ void main() {
       test('returns PAYLOAD_TOO_LARGE for oversized key', () async {
         final oversizedKey = 'a' * 257;
 
-        final response = await processor.delete(oversizedKey);
+        final response = await processor.delete(oversizedKey, 'test-req');
 
         expect(response.status, equals(ResponseStatus.error));
         expect(response.errorCode, equals(ErrorCode.payloadTooLarge));
       });
 
       test('generates correct sequence number', () async {
-        await processor.set('key1', 'value1'); // seq 1
-        await processor.set('key2', 'value2'); // seq 2
-        await processor.delete('key1'); // seq 3
+        await processor.set('key1', 'value1', 'test-req'); // seq 1
+        await processor.set('key2', 'value2', 'test-req'); // seq 2
+        await processor.delete('key1', 'test-req'); // seq 3
 
         final tombstone = storage.getEntry('key1')!;
         expect(tombstone.seq, equals(3));
@@ -323,7 +323,7 @@ void main() {
 
       test('INCR on existing numeric value', () async {
         // Set initial value
-        await processor.set('counter', '10');
+        await processor.set('counter', '10', 'test-req');
 
         final command = Command(
           id: 'req-1',
@@ -339,7 +339,7 @@ void main() {
 
       test('INCR on non-integer value returns INVALID_TYPE', () async {
         // Set non-integer value
-        await processor.set('key', 'not_a_number');
+        await processor.set('key', 'not_a_number', 'test-req');
 
         final command = Command(id: 'req-1', op: 'INCR', key: 'key', amount: 1);
         final response = await processor.processCommand(command);
@@ -350,7 +350,7 @@ void main() {
 
       test('DECR with negative amount effectively increments', () async {
         // Set initial value
-        await processor.set('counter', '10');
+        await processor.set('counter', '10', 'test-req');
 
         final command = Command(
           id: 'req-1',
@@ -366,7 +366,7 @@ void main() {
 
       test('handles leading zeros correctly', () async {
         // Set value with leading zeros
-        await processor.set('key', '0000123');
+        await processor.set('key', '0000123', 'test-req');
 
         final command = Command(id: 'req-1', op: 'INCR', key: 'key', amount: 1);
         final response = await processor.processCommand(command);
@@ -568,10 +568,10 @@ void main() {
 
     group('Sequence number management', () {
       test('increments sequence for each mutation', () async {
-        await processor.set('key1', 'value1');
-        await processor.set('key2', 'value2');
-        await processor.delete('key1');
-        await processor.set('key3', 'value3');
+        await processor.set('key1', 'value1', 'test-req');
+        await processor.set('key2', 'value2', 'test-req');
+        await processor.delete('key1', 'test-req');
+        await processor.set('key3', 'value3', 'test-req');
 
         final entry2 = storage.getEntry('key2')!;
         final tombstone1 = storage.getEntry('key1')!;
@@ -583,10 +583,10 @@ void main() {
       });
 
       test('does not increment sequence for GET operations', () async {
-        await processor.set('key1', 'value1');
-        await processor.get('key1');
-        await processor.get('missing-key');
-        await processor.set('key2', 'value2');
+        await processor.set('key1', 'value1', 'test-req');
+        await processor.get('key1', 'test-req');
+        await processor.get('missing-key', 'test-req');
+        await processor.set('key2', 'value2', 'test-req');
 
         final entry1 = storage.getEntry('key1')!;
         final entry2 = storage.getEntry('key2')!;
@@ -602,12 +602,12 @@ void main() {
         // Each emoji is 4 bytes in UTF-8
         final multiByteKey = '🚀' * 64; // 64 * 4 = 256 bytes exactly
 
-        final response = await processor.set(multiByteKey, 'value');
+        final response = await processor.set(multiByteKey, 'value', 'test-req');
         expect(response.status, equals(ResponseStatus.ok));
 
         // One more byte should fail
         final oversizedKey = multiByteKey + 'a'; // 257 bytes
-        final errorResponse = await processor.set(oversizedKey, 'value');
+        final errorResponse = await processor.set(oversizedKey, 'value', 'test-req');
         expect(errorResponse.errorCode, equals(ErrorCode.payloadTooLarge));
       });
 
@@ -616,12 +616,12 @@ void main() {
         final charCount = (256 * 1024) ~/ 4; // 4 bytes per emoji
         final maxValue = '🚀' * charCount;
 
-        final response = await processor.set('key', maxValue);
+        final response = await processor.set('key', maxValue, 'test-req');
         expect(response.status, equals(ResponseStatus.ok));
 
         // One more character should fail
         final oversizedValue = maxValue + '🚀';
-        final errorResponse = await processor.set('key2', oversizedValue);
+        final errorResponse = await processor.set('key2', oversizedValue, 'test-req');
         expect(errorResponse.errorCode, equals(ErrorCode.payloadTooLarge));
       });
     });
