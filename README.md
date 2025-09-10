@@ -42,6 +42,7 @@ The system provides:
 - **Command Correlation Layer** (Locked Spec §3.1-3.2): Request/response correlation with UUIDv4 generation, operation-specific timeouts (10s/20s/30s), deduplication cache (10min TTL, LRU eviction), payload size validation (512 KiB limit), structured logging, and async/await API over MQTT.
 - **Command Processor** (Locked Spec §4.1-§4.4): Core command processing with GET/SET/DEL operations, UTF-8 size validation (keys ≤256B, values ≤256KiB), version vector generation with sequence numbers, idempotency cache with TTL and LRU eviction, comprehensive error handling with standardized error codes.
 - **Storage Engine** (Locked Spec §5.1, §5.6, §8): In-memory key-value store with UTF-8 support, Last-Write-Wins conflict resolution using `(timestampMs, nodeId)` ordering, tombstone management with 24-hour retention and garbage collection, optional persistence with SHA-256 checksums and corruption recovery, size constraints (keys ≤256B, values ≤256KiB UTF-8).
+- **Replication Event Publishing** (Locked Spec §7): At-least-once delivery with MQTT QoS=1, persistent outbox queue for offline buffering, monotonic sequence numbers with recovery, CBOR serialization, comprehensive observability metrics for monitoring publish rates and outbox status.
 
 ### Storage Engine Features
 
@@ -253,26 +254,97 @@ Responses are published as JSON objects to the response topic:
 
 ## 🔄 Replication System
 
+### Replication Event Publishing (Issue #13 ✅)
+
+The replication event publishing system ensures eventual consistency across distributed nodes by broadcasting all local changes via MQTT with at-least-once delivery guarantees.
+
+#### Core Components
+
+- **ReplicationEventPublisher**: Main interface for publishing replication events
+  - At-least-once delivery using MQTT QoS=1
+  - Automatic event generation from successful storage operations
+  - Integration with CBOR serializer for efficient encoding
+
+- **OutboxQueue**: Persistent FIFO queue for offline buffering
+  - Events are queued during MQTT disconnection
+  - Automatic flush on reconnection with order preservation
+  - Bounded size with overflow policy (drops oldest events)
+
+- **SequenceManager**: Monotonic sequence number management
+  - Strictly increasing sequence numbers per node
+  - Persistent storage with recovery after application restart
+  - Prevents sequence number reuse across sessions
+
+#### Delivery Guarantees
+
+- **At-least-once delivery**: Events queued in persistent outbox if MQTT is offline
+- **Idempotency support**: Events include `(node_id, seq)` for deduplication
+- **Order preservation**: FIFO queue maintains local sequence order
+- **Crash recovery**: Sequence state and outbox survive application restarts
+
+#### Event Publishing Flow
+
+```text
+Storage Operation → ReplicationEvent → CBOR Encoding → MQTT Publish
+                                    ↓
+                            OutboxQueue (if offline)
+                                    ↓
+                            Flush on Reconnection
+```
+
+#### Usage Example
+
+```dart
+// Initialize publisher
+final publisher = ReplicationEventPublisherImpl(
+  config: config,
+  mqttClient: mqttClient,
+  topicScheme: topicScheme,
+  metrics: InMemoryReplicationMetrics(),
+);
+await publisher.initialize();
+
+// Publish event from storage operation
+final entry = StorageEntry.value(
+  key: 'user:123',
+  value: 'John Doe',
+  timestampMs: DateTime.now().millisecondsSinceEpoch,
+  nodeId: config.nodeId,
+  seq: 1,
+);
+
+await publisher.publishStorageEvent(entry);
+
+// Monitor status
+publisher.outboxStatus.listen((status) {
+  print('Pending: ${status.pendingEvents}, Online: ${status.isOnline}');
+});
+```
+
+#### Observability
+
+The system provides comprehensive metrics for monitoring:
+
+- `replication_events_published_total`: Total events successfully published
+- `replication_publish_errors_total`: Total publish failures
+- `replication_outbox_size`: Current number of queued events
+- `replication_publish_latency_seconds`: Publish latency distribution
+- `replication_outbox_flush_duration_seconds`: Time to flush outbox
+
 ### Change Event Format
 
-Change events are serialized using CBOR for efficiency and published to the replication topic:
+Events are serialized using deterministic CBOR encoding and published to `{prefix}/replication/events`:
 
 ```cbor
 {
-  "op": "SET",              // Operation type
-  "key": "user:123",        // Key modified
-  "value": "john_doe",      // New value (if applicable)
-  "timestamp": 1637142400,  // Operation timestamp (UTC)
-  "node_id": "device-xyz",  // Source device ID
-  "seq": 42                 // Sequence number for ordering
+  "key": "user:123",           // Key modified
+  "node_id": "device-xyz",     // Source device ID  
+  "seq": 42,                   // Sequence number for ordering
+  "timestamp_ms": 1640995200000, // Operation timestamp (UTC ms)
+  "tombstone": false,          // true for DELETE operations
+  "value": "John Doe"          // Value (omitted if tombstone=true)
 }
 ```
-
-### Conflict Resolution
-
-- **Last-Write-Wins (LWW)**: Conflicts are resolved using timestamp ordering
-- **Source Tracking**: Events include source node ID to prevent loops
-- **Idempotency**: Duplicate events with the same sequence number are ignored
 
 ### CBOR Serializer (Spec §3.3)
 
@@ -285,8 +357,10 @@ MerkleKV uses deterministic CBOR encoding for replication change events to minim
 1. **Storage Engine**: In-memory key-value store with optional persistence
 2. **MQTT Client**: Manages subscriptions, publications, and reconnection logic
 3. **Command Processor**: Handles incoming commands and generates responses
-4. **Replication Manager**: Publishes and applies change events
-5. **Merkle Tree**: Efficient data structure for anti-entropy synchronization
+4. **Replication Event Publisher**: Publishes change events with at-least-once delivery
+5. **Sequence Manager**: Manages monotonic sequence numbers with persistence
+6. **Outbox Queue**: Persistent FIFO queue for offline event buffering
+7. **Merkle Tree**: Efficient data structure for anti-entropy synchronization (future)
 
 ### Message Processing Pipeline
 

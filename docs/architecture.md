@@ -112,6 +112,69 @@ sequenceDiagram
     end
 ```
 
+### 2a. Replication Event Publishing (Issue #13)
+
+The replication event publishing subsystem ensures reliable delivery of change events across the distributed system:
+
+```mermaid
+sequenceDiagram
+    participant App as Application
+    participant CP as Command Processor
+    participant Storage as Storage Engine
+    participant EP as Event Publisher
+    participant SM as Sequence Manager
+    participant OQ as Outbox Queue
+    participant MQTT as MQTT Client
+    participant Broker as MQTT Broker
+
+    App->>CP: SET key=value
+    CP->>Storage: put(entry)
+    Storage-->>CP: success
+    
+    CP->>EP: publishStorageEvent(entry)
+    EP->>SM: getNextSequence()
+    SM-->>EP: seq++
+    
+    EP->>EP: createEvent(entry, seq)
+    EP->>EP: serializeCBOR(event)
+    
+    alt MQTT Online
+        EP->>MQTT: publish(replication_topic, cbor_data)
+        MQTT->>Broker: MQTT PUBLISH (QoS=1)
+        Broker-->>MQTT: PUBACK
+        MQTT-->>EP: success
+    else MQTT Offline
+        EP->>OQ: enqueue(event)
+        OQ->>OQ: persistToFile()
+        Note over OQ: Event queued for later delivery
+    end
+    
+    Note over EP: On reconnection
+    EP->>OQ: drainAll()
+    OQ-->>EP: [queued_events]
+    
+    loop For each queued event
+        EP->>MQTT: publish(replication_topic, cbor_data)
+        MQTT->>Broker: MQTT PUBLISH (QoS=1)
+    end
+```
+
+#### Key Integration Points
+
+- **Command Processor**: Triggers event generation after successful storage operations
+- **Sequence Manager**: Provides monotonic sequence numbers, persisted to `{storagePath}.seq`
+- **Outbox Queue**: FIFO queue persisted to `{storagePath}.outbox` for offline buffering
+- **CBOR Serializer**: Deterministic encoding from Issue #12, ≤300 KiB payload limit
+- **MQTT Client**: QoS=1 publishing to `{prefix}/replication/events` topic
+- **MerkleKVConfig**: Configuration for persistence paths and MQTT settings
+
+#### Delivery Guarantees
+
+- **At-least-once delivery**: Events queued during disconnection, published on reconnection
+- **Idempotency support**: Events include `(node_id, seq)` for consumer deduplication
+- **Order preservation**: Local sequence ordering maintained in outbox queue
+- **Crash recovery**: Sequence state and outbox survive application restarts
+
 ### 3. Anti-Entropy Synchronization
 
 ```mermaid
@@ -151,8 +214,10 @@ The central component containing all platform-agnostic logic:
 - **Command Processor**: Handles incoming operations (GET, SET, DELETE, etc.)
 - **Storage Engine**: Manages in-memory and persistent key-value storage
 - **MQTT Client**: Manages broker connections and message handling
-- **Replication Manager**: Coordinates data synchronization between devices
-- **Merkle Tree**: Efficient data structure for anti-entropy synchronization
+- **Replication Event Publisher**: Publishes change events with at-least-once delivery (Issue #13)
+- **Sequence Manager**: Manages monotonic sequence numbers with persistence
+- **Outbox Queue**: Persistent FIFO queue for offline event buffering
+- **Merkle Tree**: Efficient data structure for anti-entropy synchronization (future)
 - **Configuration Manager**: Handles system configuration and validation
 
 ### Platform Bindings
