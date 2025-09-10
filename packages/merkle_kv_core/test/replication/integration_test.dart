@@ -1,33 +1,63 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:test/test.dart';
 import 'package:merkle_kv_core/merkle_kv_core.dart';
 
-/// Helper to wait for broker readiness
+/// Helper to wait for broker readiness with enhanced timeouts for CI
 Future<void> waitForBroker(String host, int port) async {
-  for (var i = 0; i < 10; i++) {
+  // Increased retries for CI environments
+  final maxRetries = const bool.fromEnvironment('CI') ? 20 : 10;
+  final retryDelay = const bool.fromEnvironment('CI') ? 
+      Duration(milliseconds: 1000) : Duration(milliseconds: 500);
+  
+  for (var i = 0; i < maxRetries; i++) {
     try {
       final socket = await Socket.connect(host, port);
       await socket.close();
       return; // Broker is ready
     } catch (e) {
-      if (i == 9) {
-        throw SkipException('MQTT broker not available on $host:$port after 10 attempts. '
+      if (i == maxRetries - 1) {
+        throw SkipException('MQTT broker not available on $host:$port after $maxRetries attempts. '
             'Start with: cd broker/mosquitto && docker-compose up -d');
       }
-      await Future.delayed(Duration(milliseconds: 500));
+      await Future.delayed(retryDelay);
     }
   }
 }
 
-/// Helper to wait for stable MQTT connection
+/// Helper to wait for stable MQTT connection with proper readiness checks
 Future<void> waitForConnected(MqttClientInterface mqttClient) async {
-  // Wait for connection state to be connected
-  await for (final state in mqttClient.connectionState) {
+  final completer = Completer<void>();
+  StreamSubscription? subscription;
+  
+  // Race condition fix: subscriber-before-publish pattern
+  subscription = mqttClient.connectionState.listen((state) {
+    if (state == ConnectionState.connected && !completer.isCompleted) {
+      completer.complete();
+    }
+  });
+  
+  // Check if already connected by looking at the latest state
+  bool isCurrentlyConnected = false;
+  await for (final state in mqttClient.connectionState.take(1)) {
     if (state == ConnectionState.connected) {
-      // Additional stabilization wait
-      await Future.delayed(Duration(milliseconds: 200));
+      isCurrentlyConnected = true;
       break;
     }
+  }
+  
+  if (isCurrentlyConnected && !completer.isCompleted) {
+    completer.complete();
+  }
+  
+  try {
+    // Wait for connection with timeout
+    await completer.future.timeout(Duration(seconds: 10));
+    
+    // Additional stabilization wait for message routing
+    await Future.delayed(Duration(milliseconds: 300));
+  } finally {
+    await subscription.cancel();
   }
 }
 
@@ -109,6 +139,9 @@ void main() {
 
       await publisher.publishEvent(event);
 
+      // Give time for publish to complete and metrics to update
+      await Future.delayed(Duration(milliseconds: 100));
+
       // Verify metrics
       expect(metrics.eventsPublished, equals(1));
       expect(metrics.publishErrors, equals(0));
@@ -129,6 +162,9 @@ void main() {
       // Disconnect and publish event (should queue)
       await mqttClient.disconnect(suppressLWT: true);
       
+      // Wait for disconnect to propagate
+      await Future.delayed(Duration(milliseconds: 100));
+      
       final event = ReplicationEvent.value(
         key: 'offline-test-key',
         nodeId: config.nodeId,
@@ -148,6 +184,9 @@ void main() {
       await mqttClient.connect();
       await waitForConnected(mqttClient); // Wait for stable connection
       await publisher.flushOutbox();
+
+      // Give time for metrics to update
+      await Future.delayed(Duration(milliseconds: 100));
 
       // Verify event was published
       expect(metrics.eventsPublished, equals(1));
