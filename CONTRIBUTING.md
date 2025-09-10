@@ -204,6 +204,8 @@ test(core): add idempotency validation tests
 4. **Property Tests**: Idempotency and determinism validation
 5. **Mobile Tests**: Battery, memory, network efficiency
 
+CBOR serialization includes golden vector tests to enforce deterministic output across devices.
+
 ### Required Test Scenarios
 
 **For every feature:**
