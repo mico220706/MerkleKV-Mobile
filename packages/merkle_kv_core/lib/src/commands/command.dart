@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import '../utils/numeric_operations.dart';
+import '../utils/string_operations.dart';
 
 /// Represents a command to be sent to MerkleKV.
 ///
@@ -104,7 +105,7 @@ class Command {
   }
 
   /// Returns true if this is a single-key operation.
-  bool get isSingleKeyOp => ['GET', 'SET', 'DEL', 'INCR', 'DECR'].contains(op);
+  bool get isSingleKeyOp => ['GET', 'SET', 'DEL', 'INCR', 'DECR', 'APPEND', 'PREPEND'].contains(op);
 
   /// Returns true if this is a multi-key operation.
   bool get isMultiKeyOp => ['MGET', 'MSET'].contains(op);
@@ -217,5 +218,33 @@ class Command {
       );
     }
     return Command(id: id, op: 'DECR', key: key, amount: amount);
+  }
+
+  /// Creates an APPEND command.
+  factory Command.append({
+    required String id,
+    required String key,
+    required String value,
+  }) {
+    return Command(
+      id: id,
+      op: 'APPEND',
+      key: key,
+      value: value,
+    );
+  }
+
+  /// Creates a PREPEND command.
+  factory Command.prepend({
+    required String id,
+    required String key,
+    required String value,
+  }) {
+    return Command(
+      id: id,
+      op: 'PREPEND',
+      key: key,
+      value: value,
+    );
   }
 }
