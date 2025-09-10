@@ -617,6 +617,36 @@ void main() async {
 5. Flutter-specific integration tests
 6. End-to-end tests in a real mobile environment
 
+### Running Integration Tests (MQTT broker required)
+
+- Start a local broker (Docker):
+  ```bash
+  docker run -d --rm --name mosquitto -p 1883:1883 eclipse-mosquitto:2
+  ```
+
+- Environment (defaults):
+  ```bash
+  export MQTT_HOST=127.0.0.1
+  export MQTT_PORT=1883
+  ```
+
+- Execute tests:
+  ```bash
+  dart test -t integration --timeout=90s
+  ```
+
+- Enforce broker requirement (CI or strict local runs):
+  ```bash
+  IT_REQUIRE_BROKER=1 dart test -t integration --timeout=90s
+  ```
+
+- Stop the broker:
+  ```bash
+  docker stop mosquitto
+  ```
+
+Integration tests skip cleanly when no usable broker is present, unless `IT_REQUIRE_BROKER=1` is set, in which case they fail early by design.
+
 ## 📊 Performance Considerations
 
 - **Message Size**: Use CBOR encoding for compact messages

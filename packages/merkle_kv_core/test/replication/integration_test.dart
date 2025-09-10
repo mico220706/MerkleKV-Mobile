@@ -294,6 +294,11 @@ void main() {
 
     setUpAll(() async {
       it = await computeItAssumptions();
+
+      final require = Platform.environment['IT_REQUIRE_BROKER'] == '1';
+      if (require && (!it.reachable || !it.connectable)) {
+        fail('Broker required for integration tests: ${it.reasonIfSkip}');
+      }
     });
 
     guardedTest('single event publication', () async {
