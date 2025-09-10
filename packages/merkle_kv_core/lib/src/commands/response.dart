@@ -6,6 +6,8 @@ class ErrorCode {
   static const int timeout = 101;
   static const int notFound = 102;
   static const int payloadTooLarge = 103;
+  static const int rangeOverflow = 104;  
+  static const int invalidType = 105; 
   static const int idempotentReplay =
       110; // Special case for idempotent operations
   static const int internalError = 199;
@@ -21,6 +23,10 @@ class ErrorCode {
         return 'Key not found';
       case payloadTooLarge:
         return 'Payload exceeds maximum size limit';
+      case rangeOverflow:                  
+        return 'Numeric operation resulted in overflow';
+      case invalidType:                
+        return 'Value is not a valid integer for numeric operation';
       case idempotentReplay:
         return 'Idempotent replay of cached response';
       case internalError:
@@ -151,6 +157,24 @@ class Response {
       id: id,
       error: ErrorCode.describe(ErrorCode.notFound),
       errorCode: ErrorCode.notFound,
+    );
+  }
+
+  /// Creates a range overflow error response.
+  factory Response.rangeOverflow(String id, String message) {
+    return Response.error(
+      id: id,
+      error: message,
+      errorCode: ErrorCode.rangeOverflow,
+    );
+  }
+
+  /// Creates an invalid type error response.
+  factory Response.invalidType(String id, String message) {
+    return Response.error(
+      id: id,
+      error: message,
+      errorCode: ErrorCode.invalidType,
     );
   }
 

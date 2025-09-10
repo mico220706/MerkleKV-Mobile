@@ -301,6 +301,60 @@ void main() {
       });
     });
 
+    group('INCR/DECR operations', () {
+      test('INCR on absent key defaults to 0', () async {
+        final command = Command(id: 'req-1', op: 'INCR', key: 'counter', amount: 5);
+        final response = await processor.processCommand(command);
+        
+        expect(response.status, equals(ResponseStatus.ok));
+        expect(response.value, equals('5'));
+      });
+
+      test('INCR on existing numeric value', () async {
+        // Set initial value
+        await processor.set('counter', '10');
+        
+        final command = Command(id: 'req-1', op: 'INCR', key: 'counter', amount: 3);
+        final response = await processor.processCommand(command);
+        
+        expect(response.status, equals(ResponseStatus.ok));
+        expect(response.value, equals('13'));
+      });
+
+      test('INCR on non-integer value returns INVALID_TYPE', () async {
+        // Set non-integer value
+        await processor.set('key', 'not_a_number');
+        
+        final command = Command(id: 'req-1', op: 'INCR', key: 'key', amount: 1);
+        final response = await processor.processCommand(command);
+        
+        expect(response.status, equals(ResponseStatus.error));
+        expect(response.errorCode, equals(ErrorCode.invalidType));
+      });
+
+      test('DECR with negative amount effectively increments', () async {
+        // Set initial value
+        await processor.set('counter', '10');
+        
+        final command = Command(id: 'req-1', op: 'DECR', key: 'counter', amount: -5);
+        final response = await processor.processCommand(command);
+        
+        expect(response.status, equals(ResponseStatus.ok));
+        expect(response.value, equals('15'));
+      });
+
+      test('handles leading zeros correctly', () async {
+        // Set value with leading zeros
+        await processor.set('key', '0000123');
+        
+        final command = Command(id: 'req-1', op: 'INCR', key: 'key', amount: 1);
+        final response = await processor.processCommand(command);
+        
+        expect(response.status, equals(ResponseStatus.ok));
+        expect(response.value, equals('124'));
+      });
+    });
+
     group('processCommand', () {
       test('handles GET command', () async {
         // Setup

@@ -3,6 +3,7 @@ import 'dart:convert';
 import '../config/merkle_kv_config.dart';
 import '../storage/storage_interface.dart';
 import '../storage/storage_entry.dart';
+import '../utils/numeric_operations.dart';
 import 'command.dart';
 import 'response.dart';
 
@@ -22,6 +23,12 @@ abstract class CommandProcessor {
 
   /// Deletes a key (always returns OK - idempotent).
   Future<Response> delete(String key);
+
+  /// Increments a numeric value by the specified amount. 
+  Future<Response> increment(String key, int amount);
+
+  /// Decrements a numeric value by the specified amount. 
+  Future<Response> decrement(String key, int amount);
 }
 
 /// Cache entry for idempotent request handling.
@@ -95,6 +102,34 @@ class CommandProcessorImpl implements CommandProcessor {
                 command.id, 'Missing key for DELETE operation');
           } else {
             response = await delete(command.key!);
+          }
+          break;
+        case 'INCR': 
+          if (command.key == null) {
+            response = Response.invalidRequest(
+                command.id, 'Missing key for INCR operation');
+          } else {
+            final amount = command.amount ?? 1;
+            if (!NumericOperations.isValidAmount(amount)) {
+              response = Response.invalidRequest(
+                  command.id, 'Amount must be in range [-9e15, 9e15], got: $amount');
+            } else {
+              response = await increment(command.key!, amount);
+            }
+          }
+          break;
+        case 'DECR': 
+          if (command.key == null) {
+            response = Response.invalidRequest(
+                command.id, 'Missing key for DECR operation');
+          } else {
+            final amount = command.amount ?? 1;
+            if (!NumericOperations.isValidAmount(amount)) {
+              response = Response.invalidRequest(
+                  command.id, 'Amount must be in range [-9e15, 9e15], got: $amount');
+            } else {
+              response = await decrement(command.key!, amount);
+            }
           }
           break;
         default:
@@ -193,6 +228,78 @@ class CommandProcessorImpl implements CommandProcessor {
       return Response.ok(id: '');
     } catch (e) {
       return Response.internalError('', 'Storage error: $e');
+    }
+  }
+
+  @override
+  Future<Response> increment(String key, int amount) async {
+    return await _performNumericOperation(key, amount, true);
+  }
+
+  @override
+  Future<Response> decrement(String key, int amount) async {
+    return await _performNumericOperation(key, amount, false);
+  }
+
+  Future<Response> _performNumericOperation(
+    String key, 
+    int amount, 
+    bool isIncrement
+  ) async {
+    try {
+      // Validate key size
+      final keyBytes = utf8.encode(key);
+      if (keyBytes.length > _maxKeyBytes) {
+        return Response.payloadTooLarge('');
+      }
+
+      // Get current value
+      final current = await _storage.get(key);
+      int currentInt = 0;
+
+      if (current != null && !current.isTombstone) {
+        // Parse existing value as integer
+        final parsed = NumericOperations.parseInteger(current.value);
+        if (parsed == null) {
+          // Value exists but is not a valid integer
+          return Response.invalidType('', 
+              'Value is not a valid integer: ${current.value}');
+        }
+        currentInt = parsed;
+      }
+      // If key doesn't exist or is tombstone, treat as 0 (per §4.5)
+
+      // Perform safe arithmetic
+      final int newValue;
+      try {
+        if (isIncrement) {
+          newValue = NumericOperations.safeIncrement(currentInt, amount);
+        } else {
+          newValue = NumericOperations.safeDecrement(currentInt, amount);
+        }
+      } on _NumericOverflowException catch (e) {
+        return Response.rangeOverflow('', e.message);
+      }
+
+      // Format result canonically
+      final canonicalValue = NumericOperations.formatCanonical(newValue);
+
+      // Create new storage entry with version vector
+      final entry = StorageEntry.value(
+        key: key,
+        value: canonicalValue,
+        timestampMs: DateTime.now().millisecondsSinceEpoch,
+        nodeId: _config.nodeId,
+        seq: _nextSequenceNumber(),
+      );
+
+      // Store the new value
+      await _storage.put(key, entry);
+
+      return Response.ok(id: '', value: canonicalValue);
+
+    } catch (e) {
+      return Response.internalError('', 'Numeric operation failed: $e');
     }
   }
 
