@@ -34,6 +34,7 @@ scripts:
       ignore: 
         - "*flutter*"
         - "flutter_demo"  # Exclude apps without tests
+      noDependsOn: "flutter"  # Exclude packages that depend on Flutter
       
   test:melos:flutter:
     description: Run Flutter tests for Flutter packages with tests
