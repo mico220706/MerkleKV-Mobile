@@ -401,8 +401,8 @@ jobs:
           if melos run test:melos:flutter; then
             echo "✅ Flutter package tests completed successfully"  
           else
-            echo "⚠️ Flutter package tests failed, but continuing..."
-            # Don't fail pipeline for Flutter tests in this phase
+            echo "❌ Flutter package tests failed"
+            exit 1
           fi
           
           echo "✅ Unit testing completed successfully"

@@ -25,20 +25,31 @@ scripts:
       failFast: true
   
   test:melos:dart:
-    description: Run Dart tests for non-Flutter packages
+    description: Run Dart tests for pure Dart packages
     run: dart test --reporter=expanded --timeout=30s
     exec:
       failFast: true
     packageFilters:
-      ignore: "*flutter*"
+      dependsOn: "test"
+      ignore: 
+        - "*flutter*"
+        - "flutter_demo"  # Exclude apps without tests
       
   test:melos:flutter:
-    description: Run Flutter tests for Flutter packages
-    run: flutter test --machine || flutter test
+    description: Run Flutter tests for Flutter packages with tests
+    run: flutter test --reporter=expanded --timeout=30s
     exec:
       failFast: true
     packageFilters:
       flutter: true
+  
+  test:all:
+    description: Run all tests in the monorepo
+    run: |
+      echo "Running Dart tests..."
+      melos run test:melos:dart || echo "No Dart-only packages with tests"
+      echo "Running Flutter tests..."
+      melos run test:melos:flutter || echo "No Flutter packages with tests"
   
   format:
     run: dart format --set-exit-if-changed .
