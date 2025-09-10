@@ -337,6 +337,34 @@ Contributors are recognized in:
 
 By contributing to MerkleKV Mobile, you agree that your contributions will be licensed under the project's license terms.
 
+### Running Integration Tests
+
+- **Start broker (Docker)**:
+  ```bash
+  docker run -d --rm --name mosquitto -p 1883:1883 eclipse-mosquitto:2
+  # For Mosquitto v2, if connections are refused, run with a config that enables:
+  #   listener 1883 0.0.0.0
+  #   allow_anonymous true
+  ```
+
+- **Environment (defaults)**:
+  ```bash
+  export MQTT_HOST=127.0.0.1
+  export MQTT_PORT=1883
+  ```
+
+- **Execute**:
+  ```bash
+  dart test -t integration --timeout=90s
+  ```
+
+- **Enforce broker requirement (CI/strict runs)**:
+  ```bash
+  IT_REQUIRE_BROKER=1 dart test -t integration --timeout=90s
+  ```
+
+- **Dev default gracefully skips when no broker is available** (`IT_REQUIRE_BROKER=0`).
+
 ---
 
 **Questions?** Open a GitHub Discussion or check our documentation at [docs/](./docs/).

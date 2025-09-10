@@ -1,0 +1,37 @@
+name: Tests
+on: [push, pull_request]
+
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: packages/merkle_kv_core
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dart-lang/setup-dart@v1
+      - run: dart pub get
+      - run: dart analyze
+      - run: dart test -x integration --reporter=expanded --timeout=30s
+
+  integration:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: packages/merkle_kv_core
+    services:
+      mosquitto:
+        image: eclipse-mosquitto:2
+        ports: ['1883:1883']
+        # Mount our permissive config so the broker accepts connections
+        options: >-
+          -v ${{ github.workspace }}/.ci/mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf
+    env:
+      MQTT_HOST: 127.0.0.1
+      MQTT_PORT: 1883
+      IT_REQUIRE_BROKER: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dart-lang/setup-dart@v1
+      - run: dart pub get
+      - run: dart test -t integration --timeout=90s --chain-stack-traces

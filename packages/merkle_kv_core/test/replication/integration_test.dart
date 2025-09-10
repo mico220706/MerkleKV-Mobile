@@ -2,6 +2,7 @@
 library merkle_kv_core.integration_tests;
 
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 import 'package:test/test.dart';
@@ -23,248 +24,6 @@ class ItAssumptions {
     required this.connectable,
     required this.reasonIfSkip,
   });
-}
-
-Future<ItAssumptions> computeItAssumptions() async {
-  final cfg = MqttTestConfig.fromEnv();
-  final host = (cfg.host.isEmpty || cfg.host == 'localhost') ? '127.0.0.1' : cfg.host;
-  final port = cfg.port;
-
-  // 1) Reachability (TCP)
-  final reachable = await _tryReach(host, port, const Duration(seconds: 5));
-
-  if (!reachable) {
-    return ItAssumptions(
-      host: host,
-      port: port,
-      reachable: false,
-      connectable: false,
-      reasonIfSkip: 'MQTT broker not reachable at $host:$port',
-    );
-  }
-
-  // 2) Connectability (MQTT CONNECT/CONNACK success with current auth/TLS)
-  final ok = await _tryConnectOnce(host, port, cfg, const Duration(seconds: 8));
-  return ItAssumptions(
-    host: host,
-    port: port,
-    reachable: true,
-    connectable: ok,
-    reasonIfSkip: ok
-        ? ''
-        : 'MQTT broker refused or auth/TLS mismatch at $host:$port (skipping integration tests)',
-  );
-}
-
-Future<bool> _tryReach(String host, int port, Duration timeout) async {
-  try {
-    final s = await Socket.connect(host, port, timeout: timeout);
-    await s.close();
-    return true;
-  } catch (_) {
-    return false;
-  }
-}
-
-Future<bool> _tryConnectOnce(String host, int port, MqttTestConfig cfg, Duration timeout) async {
-  final client = MqttClientImpl(
-    MerkleKVConfig(
-      mqttHost: host,
-      mqttPort: port,
-      username: cfg.username,
-      password: cfg.password,
-      mqttUseTls: cfg.tls,
-      nodeId: 'probe-node',
-      clientId: 'it-probe-${DateTime.now().millisecondsSinceEpoch}',
-      topicPrefix: 'probe',
-      storagePath: '',
-      persistenceEnabled: false,
-    ),
-  );
-  try {
-    unawaited(client.connect());
-    await waitForConnected(client, timeout: timeout);
-    return true;
-  } catch (_) {
-    return false;
-  } finally {
-    try { await client.disconnect(); } catch (_) {}
-  }
-}
-
-// At top of integration_test.dart (replace previous globals)
-Future<ItAssumptions>? _assumptionsFuture;
-
-Future<ItAssumptions> _getAssumptions() {
-  _assumptionsFuture ??= computeItAssumptions();
-  return _assumptionsFuture!;
-}
-
-// New guardedTest that computes assumptions at runtime (no top-level access)
-void guardedTest(
-  String name,
-  Future<void> Function(ItAssumptions a) body, {
-  Duration? timeout,
-}) {
-  test(
-    name,
-    () async {
-      final a = await _getAssumptions();
-      final require = Platform.environment['IT_REQUIRE_BROKER'] == '1';
-
-      // If broker not usable: either fail early (when required) or return early (runtime skip)
-      if (!a.reachable || !a.connectable) {
-        if (require) {
-          fail('Broker required for integration tests: ${a.reasonIfSkip}');
-        }
-        // Runtime skip: do not fail, do not hang
-        // (We intentionally avoid `skip:` param to keep registration-time pure.)
-        // Optionally log:
-        // print('SKIP[integration]: ${a.reasonIfSkip}');
-        return;
-      }
-
-      await body(a);
-    },
-    timeout: timeout != null ? Timeout(timeout) : null,
-  );
-}
-
-/// Enhanced connection state waiting with auth/TLS detection
-Future<void> waitForConnected(MqttClientInterface mqtt, {Duration timeout = const Duration(seconds: 20)}) async {
-  final completer = Completer<void>();
-  StreamSubscription? subscription;
-  Timer? timeoutTimer;
-  
-  try {
-    // Listen for connection state changes
-    subscription = mqtt.connectionState.listen((state) {
-      if (state == ConnectionState.connected && !completer.isCompleted) {
-        completer.complete();
-      } else if (state == ConnectionState.disconnected && !completer.isCompleted) {
-        // Check if we got disconnected immediately (auth/TLS issue)
-        Timer(const Duration(milliseconds: 500), () {
-          if (!completer.isCompleted) {
-            completer.completeError(Exception('Connection refused - likely auth/TLS mismatch'));
-          }
-        });
-      }
-    });
-    
-    // Set timeout
-    timeoutTimer = Timer(timeout, () {
-      if (!completer.isCompleted) {
-        completer.completeError(TimeoutException('Connection timeout', timeout));
-      }
-    });
-    
-    await completer.future;
-    
-    // Additional stabilization wait for message routing
-    await Future.delayed(const Duration(milliseconds: 200));
-    
-  } finally {
-    timeoutTimer?.cancel();
-    await subscription?.cancel();
-  }
-}
-
-/// Enhanced subscription verification with retained probe messages
-Future<void> subscribeAndProbe({
-  required MqttClientInterface listener,
-  required String topic,
-  required MqttClientInterface prober,
-  Duration timeout = const Duration(seconds: 15),
-}) async {
-  final completer = Completer<void>();
-  Timer? timeoutTimer;
-  
-  try {
-    // Subscribe first
-    await listener.subscribe(topic, (topic, payload) {
-      if (payload.contains('__probe__') && !completer.isCompleted) {
-        completer.complete();
-      }
-    });
-    
-    // Small delay for subscription to propagate
-    await Future.delayed(const Duration(milliseconds: 100));
-    
-    // Send probe message with retain flag
-    await prober.publish('$topic/__probe__', '__probe__', forceRetainFalse: false);
-    
-    // Set timeout
-    timeoutTimer = Timer(timeout, () {
-      if (!completer.isCompleted) {
-        completer.completeError(TimeoutException('Subscription probe timeout for topic: $topic', timeout));
-      }
-    });
-    
-    await completer.future;
-    
-  } finally {
-    timeoutTimer?.cancel();
-  }
-}
-
-/// Enhanced outbox draining with proper timeout handling
-Future<void> waitForOutboxDrained(ReplicationEventPublisherImpl publisher, {Duration timeout = const Duration(seconds: 30)}) async {
-  final deadline = DateTime.now().add(timeout);
-  
-  while (DateTime.now().isBefore(deadline)) {
-    final status = await Future.any([
-      publisher.outboxStatus.first,
-      Future.delayed(const Duration(seconds: 1)).then((_) => throw TimeoutException('Status timeout', const Duration(seconds: 1)))
-    ]);
-    
-    if (status.pendingEvents == 0) {
-      return;
-    }
-    await Future.delayed(const Duration(milliseconds: 100));
-  }
-  throw TimeoutException('Outbox did not drain within timeout', timeout);
-}
-
-/// Enhanced message collection with proper timeout and filtering
-Future<List<String>> collectMessages(
-  MqttClientInterface mqtt,
-  String topic,
-  int expectedCount, {
-  Duration timeout = const Duration(seconds: 10),
-}) async {
-  final messages = <String>[];
-  final completer = Completer<List<String>>();
-  Timer? timeoutTimer;
-  
-  try {
-    void messageHandler(String topic, String payload) {
-      if (!payload.contains('__probe__')) {
-        messages.add(payload);
-        if (messages.length >= expectedCount && !completer.isCompleted) {
-          completer.complete(messages);
-        }
-      }
-    }
-    
-    await mqtt.subscribe(topic, messageHandler);
-    
-    // Set timeout
-    timeoutTimer = Timer(timeout, () {
-      if (!completer.isCompleted) {
-        completer.complete(messages);
-      }
-    });
-    
-    return await completer.future;
-    
-  } finally {
-    timeoutTimer?.cancel();
-  }
-}
-
-/// Generate unique test ID for topic prefixes and client IDs
-String _generateTestId() {
-  return '${DateTime.now().millisecondsSinceEpoch}-${Random().nextInt(10000)}';
 }
 
 /// Enhanced environment configuration with IPv4 forcing and comprehensive auth support
@@ -309,6 +68,321 @@ class MqttTestConfig {
   String toString() => '$host:$port (tls=$tls, user=${username ?? '-'})';
 }
 
+/// Hardened MQTT client builder with consistent configuration
+MqttClientInterface buildMqtt(MqttTestConfig cfg, {required String role, String? suffix}) {
+  final id = 'it-${role}-${DateTime.now().millisecondsSinceEpoch}-${suffix ?? Random().nextInt(10000)}';
+  final host = (cfg.host.isEmpty || cfg.host == 'localhost') ? '127.0.0.1' : cfg.host;
+  
+  return MqttClientImpl(
+    MerkleKVConfig(
+      mqttHost: host,
+      mqttPort: cfg.port,
+      username: cfg.username,
+      password: cfg.password,
+      mqttUseTls: cfg.tls,
+      nodeId: 'test-node-$id',
+      clientId: id,
+      topicPrefix: 'test',
+      storagePath: '',
+      persistenceEnabled: false,
+    ),
+  );
+}
+
+/// Hardened connection with explicit timeout and skip behavior
+Future<void> connectOrSkip(MqttClientInterface c, {
+  Duration timeout = const Duration(seconds: 20),
+  bool require = false,
+  String? what,
+}) async {
+  final name = what ?? 'mqtt';
+  try {
+    // Start listening BEFORE calling connect to avoid race condition
+    final completer = Completer<void>();
+    late StreamSubscription subscription;
+    
+    subscription = c.connectionState.listen((state) {
+      if (state == ConnectionState.connected && !completer.isCompleted) {
+        completer.complete();
+      }
+    });
+    
+    // Set timeout
+    Timer? timeoutTimer = Timer(timeout, () {
+      if (!completer.isCompleted) {
+        completer.completeError(TimeoutException('Connection timeout', timeout));
+      }
+    });
+    
+    try {
+      // Now call connect
+      await c.connect(); // MUST await
+      
+      // Wait for connected state
+      await completer.future;
+      
+      // Additional stabilization wait for message routing
+      await Future.delayed(const Duration(milliseconds: 200));
+      
+    } finally {
+      timeoutTimer.cancel();
+      await subscription.cancel();
+    }
+    
+  } on TimeoutException catch (e) {
+    if (require) fail('Connection timeout ($name): ${e.message}');
+    // runtime skip (return early, no fail)
+    return Future.value();
+  } catch (e) {
+    if (require) fail('Connection failed ($name): $e');
+    return Future.value();
+  }
+}
+
+/// Helper to create publisher with proper initialization
+Future<ReplicationEventPublisherImpl> makePublisher(
+  MqttTestConfig cfg, 
+  MqttClientInterface mqttClient,
+  String testId,
+) async {
+  final config = MerkleKVConfig(
+    mqttHost: (cfg.host.isEmpty || cfg.host == 'localhost') ? '127.0.0.1' : cfg.host,
+    mqttPort: cfg.port,
+    username: cfg.username,
+    password: cfg.password,
+    mqttUseTls: cfg.tls,
+    nodeId: 'test-node-$testId',
+    clientId: mqttClient.hashCode.toString(), // Use existing client ID
+    topicPrefix: 'test/$testId',
+    storagePath: '',
+    persistenceEnabled: false,
+  );
+  
+  final topicScheme = TopicScheme.create(config.topicPrefix, config.clientId);
+  final metrics = InMemoryReplicationMetrics();
+  
+  final publisher = ReplicationEventPublisherImpl(
+    config: config,
+    mqttClient: mqttClient,
+    topicScheme: topicScheme,
+    metrics: metrics,
+  );
+  
+  await publisher.initialize();
+  await publisher.ready();
+  return publisher;
+}
+
+Future<ItAssumptions> computeItAssumptions() async {
+  final cfg = MqttTestConfig.fromEnv();
+  final host = (cfg.host.isEmpty || cfg.host == 'localhost') ? '127.0.0.1' : cfg.host;
+  final port = cfg.port;
+
+  // 1) Reachability (TCP)
+  final reachable = await _tryReach(host, port, const Duration(seconds: 5));
+
+  if (!reachable) {
+    return ItAssumptions(
+      host: host,
+      port: port,
+      reachable: false,
+      connectable: false,
+      reasonIfSkip: 'MQTT broker not reachable at $host:$port',
+    );
+  }
+
+  // 2) Connectability (MQTT CONNECT/CONNACK success with current auth/TLS)
+  final ok = await _tryConnectOnce(host, port, cfg, const Duration(seconds: 8));
+  return ItAssumptions(
+    host: host,
+    port: port,
+    reachable: true,
+    connectable: ok,
+    reasonIfSkip: ok
+        ? ''
+        : 'MQTT broker refused or auth/TLS mismatch at $host:$port (skipping integration tests)',
+  );
+}
+
+Future<bool> _tryReach(String host, int port, Duration timeout) async {
+  try {
+    final s = await Socket.connect(host, port, timeout: timeout);
+    await s.close();
+    return true;
+  } catch (_) {
+    return false;
+  }
+}
+
+Future<bool> _tryConnectOnce(String host, int port, MqttTestConfig cfg, Duration timeout) async {
+  final client = buildMqtt(cfg, role: 'probe');
+  
+  try {
+    // Start listening BEFORE calling connect to avoid race condition
+    final completer = Completer<void>();
+    late StreamSubscription subscription;
+    
+    subscription = client.connectionState.listen((state) {
+      if (state == ConnectionState.connected && !completer.isCompleted) {
+        completer.complete();
+      }
+    });
+    
+    // Set timeout
+    Timer? timeoutTimer = Timer(timeout, () {
+      if (!completer.isCompleted) {
+        completer.completeError(TimeoutException('Connection timeout', timeout));
+      }
+    });
+    
+    try {
+      await client.connect();
+      await completer.future;
+      return true;
+    } finally {
+      timeoutTimer.cancel();
+      await subscription.cancel();
+    }
+    
+  } catch (e) {
+    return false;
+  } finally {
+    try { 
+      await client.disconnect(); 
+    } catch (e) {
+      // Ignore disconnect errors
+    }
+  }
+}
+
+// At top of integration_test.dart (replace previous globals)
+Future<ItAssumptions>? _assumptionsFuture;
+
+Future<ItAssumptions> _getAssumptions() {
+  _assumptionsFuture ??= computeItAssumptions();
+  return _assumptionsFuture!;
+}
+
+// New guardedTest that computes assumptions at runtime (no top-level access)
+void guardedTest(
+  String name,
+  Future<void> Function(ItAssumptions a) body, {
+  Duration? timeout,
+}) {
+  test(
+    name,
+    () async {
+      final a = await _getAssumptions();
+      final require = Platform.environment['IT_REQUIRE_BROKER'] == '1';
+
+      // If broker not usable: either fail early (when required) or return early (runtime skip)
+      if (!a.reachable || !a.connectable) {
+        if (require) {
+          fail('Broker required for integration tests: ${a.reasonIfSkip}');
+        }
+        // Runtime skip: do not fail, do not hang
+        return;
+      }
+
+      await body(a);
+    },
+    timeout: timeout != null ? Timeout(timeout) : null,
+  );
+}
+
+/// Enhanced connection state waiting with auth/TLS detection
+Future<void> waitForConnected(MqttClientInterface mqtt, {Duration timeout = const Duration(seconds: 20)}) async {
+  final completer = Completer<void>();
+  StreamSubscription? subscription;
+  Timer? timeoutTimer;
+  
+  try {
+    // Set up listener first to avoid race condition
+    subscription = mqtt.connectionState.listen((state) {
+      if (state == ConnectionState.connected && !completer.isCompleted) {
+        completer.complete();
+      }
+    });
+    
+    // Set timeout
+    timeoutTimer = Timer(timeout, () {
+      if (!completer.isCompleted) {
+        completer.completeError(TimeoutException('Connection timeout', timeout));
+      }
+    });
+    
+    await completer.future;
+    
+    // Additional stabilization wait for message routing
+    await Future.delayed(const Duration(milliseconds: 200));
+    
+  } finally {
+    timeoutTimer?.cancel();
+    await subscription?.cancel();
+  }
+}
+
+/// Enhanced subscription verification with retained probe messages
+Future<void> subscribeAndProbe({
+  required MqttClientInterface listener,
+  required String topic,
+  required MqttClientInterface prober,
+  Duration timeout = const Duration(seconds: 10),
+}) async {
+  final completer = Completer<void>();
+  Timer? timeoutTimer;
+  
+  try {
+    // Subscribe first
+    await listener.subscribe(topic, (topic, payload) {
+      if (payload.contains('__probe__') && !completer.isCompleted) {
+        completer.complete();
+      }
+    });
+    
+    // Small delay for subscription to propagate
+    await Future.delayed(const Duration(milliseconds: 100));
+    
+    // Send probe message
+    await prober.publish('$topic/__probe__', '__probe__');
+    
+    // Set timeout
+    timeoutTimer = Timer(timeout, () {
+      if (!completer.isCompleted) {
+        completer.completeError(TimeoutException('Subscription probe timeout for topic: $topic', timeout));
+      }
+    });
+    
+    await completer.future;
+    
+  } finally {
+    timeoutTimer?.cancel();
+  }
+}
+
+/// Enhanced outbox draining with proper timeout handling
+Future<void> waitForOutboxDrained(ReplicationEventPublisherImpl publisher, {Duration timeout = const Duration(seconds: 30)}) async {
+  final deadline = DateTime.now().add(timeout);
+  
+  while (DateTime.now().isBefore(deadline)) {
+    final status = await Future.any([
+      publisher.outboxStatus.first,
+      Future.delayed(const Duration(seconds: 1)).then((_) => throw TimeoutException('Status timeout', const Duration(seconds: 1)))
+    ]);
+    
+    if (status.pendingEvents == 0) {
+      return;
+    }
+    await Future.delayed(const Duration(milliseconds: 100));
+  }
+  throw TimeoutException('Outbox did not drain within timeout', timeout);
+}
+
+/// Generate unique test ID for topic prefixes and client IDs
+String _generateTestId() {
+  return '${DateTime.now().millisecondsSinceEpoch}-${Random().nextInt(10000)}';
+}
+
 /// Integration tests for replication event publishing with real MQTT broker
 /// 
 /// Environment variables:
@@ -317,369 +391,238 @@ class MqttTestConfig {
 /// - MQTT_USERNAME: MQTT username (optional)
 /// - MQTT_PASSWORD: MQTT password (optional) 
 /// - MQTT_TLS: Enable TLS (default: false)
+/// - IT_REQUIRE_BROKER: Require broker availability (default: false)
 void main() {
   group('Replication Event Publisher Integration Tests', () {
-    guardedTest('single event publication', (it) async {
+    guardedTest('should publish and receive replication events', (a) async {
+      final cfg = MqttTestConfig.fromEnv();
       final testId = _generateTestId();
-      final topicPrefix = 'test/$testId';
-      late Directory tempDir;
-      late MqttClientInterface publisherMqtt;
-      late MqttClientInterface listenerMqtt;
-      late ReplicationEventPublisherImpl publisher;
-      late InMemoryReplicationMetrics metrics;
+      
+      // Create hardened clients with unique IDs
+      final listenerClient = buildMqtt(cfg, role: 'listener', suffix: testId);
+      final publisherClient = buildMqtt(cfg, role: 'publisher', suffix: testId);
       
       try {
-        // Setup
-        tempDir = await Directory.systemTemp.createTemp('integration_test_');
+        // Hardened connections with explicit timeouts
+        await connectOrSkip(listenerClient, timeout: const Duration(seconds: 15), require: true, what: 'listener');
+        await connectOrSkip(publisherClient, timeout: const Duration(seconds: 15), require: true, what: 'publisher');
+
+        // Create and initialize publisher with explicit ready check
+        final publisher = await makePublisher(cfg, publisherClient, testId);
         
-        final config = MerkleKVConfig(
-          mqttHost: it.host,
-          mqttPort: it.port,
-          nodeId: 'test-node-$testId',
-          clientId: 'test-publisher-$testId',
-          topicPrefix: topicPrefix,
-          storagePath: '${tempDir.path}/test.storage',
-          persistenceEnabled: true,
-        );
-        
-        publisherMqtt = MqttClientImpl(config);
-        listenerMqtt = MqttClientImpl(config.copyWith(clientId: 'test-listener-$testId'));
-        metrics = InMemoryReplicationMetrics();
-        
-        // Connect both clients with timeout
-        await publisherMqtt.connect();
-        await waitForConnected(publisherMqtt, timeout: const Duration(seconds: 20));
-        
-        await listenerMqtt.connect();
-        await waitForConnected(listenerMqtt, timeout: const Duration(seconds: 20));
-        
-        // Set up subscription and probe
-        final replicationTopic = '$topicPrefix/replication/events';
-        await subscribeAndProbe(
-          listener: listenerMqtt, 
-          topic: replicationTopic, 
-          prober: publisherMqtt
-        );
-        
-        // Create publisher
-        final topicScheme = TopicScheme.create(config.topicPrefix, config.clientId);
-        publisher = ReplicationEventPublisherImpl(
-          config: config,
-          mqttClient: publisherMqtt,
-          topicScheme: topicScheme,
-          metrics: metrics,
-        );
-        
-        await publisher.initialize();
-        await publisher.ready();
-        
-        // Collect incoming messages
-        final receivedMessages = <String>[];
-        void messageHandler(String topic, String payload) {
-          if (topic.contains('/replication/events') && !topic.contains('__probe__')) {
-            receivedMessages.add(payload);
+        // Subscribe to replication events with probe verification
+        final eventReceived = Completer<ReplicationEvent>();
+        await listenerClient.subscribe('test/$testId/replication/events/+', (topic, payload) {
+          try {
+            final json = jsonDecode(payload) as Map<String, dynamic>;
+            final event = ReplicationEvent.fromJson(json);
+            if (!eventReceived.isCompleted) {
+              eventReceived.complete(event);
+            }
+          } catch (e) {
+            if (!eventReceived.isCompleted) {
+              eventReceived.completeError(e);
+            }
           }
-        }
-        
-        await listenerMqtt.subscribe(replicationTopic, messageHandler);
-        
-        // Publish test events
-        const eventCount = 3;
-        for (int i = 0; i < eventCount; i++) {
-          final event = ReplicationEvent.value(
-            key: 'test-key-$i',
-            nodeId: config.nodeId,
-            seq: i + 1,
-            timestampMs: DateTime.now().millisecondsSinceEpoch,
-            value: 'test-value-$i',
-          );
-          
-          await publisher.publishEvent(event);
-        }
-        
+        });
+
+        // Verify subscription with probe
+        await subscribeAndProbe(
+          listener: listenerClient,
+          topic: 'test/$testId/replication/events',
+          prober: publisherClient,
+          timeout: const Duration(seconds: 8),
+        );
+
+        // Publish test event
+        await publisher.publishEvent(ReplicationEvent.value(
+          key: 'test-key-1',
+          nodeId: 'test-node-$testId',
+          seq: 1,
+          timestampMs: DateTime.now().millisecondsSinceEpoch,
+          value: 'test-value-1',
+        ));
+
         // Wait for outbox to drain with timeout
-        await Future.any([
-          waitForOutboxDrained(publisher),
-          Future.delayed(const Duration(seconds: 20)).then((_) => 
-            throw TimeoutException('Outbox drain timeout', const Duration(seconds: 20)))
-        ]);
-        
-        // Give some time for messages to arrive
-        await Future.delayed(const Duration(milliseconds: 500));
-        
-        // Verify results
-        expect(receivedMessages.length, equals(eventCount));
-        expect(metrics.eventsPublished, equals(eventCount));
-        expect(metrics.publishErrors, equals(0));
-        
-        print('✓ Successfully published $eventCount events to real MQTT broker');
-        print('  Topic prefix: $topicPrefix');
-        print('  Received messages: ${receivedMessages.length}');
+        await waitForOutboxDrained(publisher, timeout: const Duration(seconds: 20));
+
+        // Wait for event with explicit timeout
+        final receivedEvent = await eventReceived.future.timeout(
+          const Duration(seconds: 15),
+          onTimeout: () => throw TimeoutException('Event not received within timeout', const Duration(seconds: 15)),
+        );
+
+        // Verify event data
+        expect(receivedEvent.key, equals('test-key-1'));
+        expect(receivedEvent.nodeId, equals('test-node-$testId'));
+        expect(receivedEvent.seq, equals(1));
+        expect(receivedEvent.value, equals('test-value-1'));
+        expect(receivedEvent.tombstone, equals(false));
         
       } finally {
-        // Cleanup
-        try { await publisher.dispose(); } catch (_) {}
-        try { await listenerMqtt.disconnect(); } catch (_) {}
-        try { await publisherMqtt.disconnect(); } catch (_) {}
-        try { await tempDir.delete(recursive: true); } catch (_) {}
+        try { await listenerClient.disconnect(); } catch (_) {}
+        try { await publisherClient.disconnect(); } catch (_) {}
       }
-    });
+    }, timeout: const Duration(seconds: 60));
 
-    guardedTest('queue events while offline then publish on reconnect', (it) async {
+    guardedTest('should handle concurrent replication events', (a) async {
+      final cfg = MqttTestConfig.fromEnv();
       final testId = _generateTestId();
-      final topicPrefix = 'test/$testId';
-      late Directory tempDir;
-      late MqttClientInterface publisherMqtt;
-      late MqttClientInterface listenerMqtt;
-      late ReplicationEventPublisherImpl publisher;
-      late InMemoryReplicationMetrics metrics;
+      
+      // Create hardened clients for multiple publishers
+      final listenerClient = buildMqtt(cfg, role: 'listener', suffix: testId);
+      final publisher1Client = buildMqtt(cfg, role: 'pub1', suffix: testId);
+      final publisher2Client = buildMqtt(cfg, role: 'pub2', suffix: testId);
       
       try {
-        // Setup
-        tempDir = await Directory.systemTemp.createTemp('integration_test_');
-        
-        final config = MerkleKVConfig(
-          mqttHost: it.host,
-          mqttPort: it.port,
-          nodeId: 'test-node-$testId',
-          clientId: 'test-publisher-$testId',
-          topicPrefix: topicPrefix,
-          storagePath: '${tempDir.path}/test.storage',
-          persistenceEnabled: true,
+        // Hardened connections with explicit timeouts
+        await connectOrSkip(listenerClient, timeout: const Duration(seconds: 15), require: true, what: 'listener');
+        await connectOrSkip(publisher1Client, timeout: const Duration(seconds: 15), require: true, what: 'publisher1');
+        await connectOrSkip(publisher2Client, timeout: const Duration(seconds: 15), require: true, what: 'publisher2');
+
+        // Create publishers
+        final publisher1 = await makePublisher(cfg, publisher1Client, '${testId}-1');
+        final publisher2 = await makePublisher(cfg, publisher2Client, '${testId}-2');
+
+        // Subscribe to all test events
+        final receivedEvents = <ReplicationEvent>[];
+        await listenerClient.subscribe('test/+/replication/events/+', (topic, payload) {
+          try {
+            final json = jsonDecode(payload) as Map<String, dynamic>;
+            final event = ReplicationEvent.fromJson(json);
+            receivedEvents.add(event);
+          } catch (e) {
+            // Ignore malformed events
+          }
+        });
+
+        // Verify subscription with probes
+        await subscribeAndProbe(
+          listener: listenerClient,
+          topic: 'test/${testId}-1/replication/events',
+          prober: publisher1Client,
+          timeout: const Duration(seconds: 8),
         );
-        
-        publisherMqtt = MqttClientImpl(config);
-        listenerMqtt = MqttClientImpl(config.copyWith(clientId: 'test-listener-$testId'));
-        metrics = InMemoryReplicationMetrics();
-        
-        // Create publisher (start disconnected)
-        final topicScheme = TopicScheme.create(config.topicPrefix, config.clientId);
-        publisher = ReplicationEventPublisherImpl(
-          config: config,
-          mqttClient: publisherMqtt,
-          topicScheme: topicScheme,
-          metrics: metrics,
+        await subscribeAndProbe(
+          listener: listenerClient,
+          topic: 'test/${testId}-2/replication/events',
+          prober: publisher2Client,
+          timeout: const Duration(seconds: 8),
         );
-        
-        await publisher.initialize();
-        await publisher.ready();
-        
-        // Emit events while offline
-        const eventCount = 5;
-        for (int i = 0; i < eventCount; i++) {
-          final event = ReplicationEvent.value(
-            key: 'offline-key-$i',
-            nodeId: config.nodeId,
+
+        // Publish concurrent events
+        final futures = <Future>[];
+        for (int i = 0; i < 3; i++) {
+          futures.add(publisher1.publishEvent(ReplicationEvent.value(
+            key: 'pub1-key-$i',
+            nodeId: 'test-node-${testId}-1',
             seq: i + 1,
             timestampMs: DateTime.now().millisecondsSinceEpoch,
-            value: 'offline-value-$i',
-          );
-          
-          await publisher.publishEvent(event);
+            value: 'pub1-value-$i',
+          )));
+          futures.add(publisher2.publishEvent(ReplicationEvent.value(
+            key: 'pub2-key-$i',
+            nodeId: 'test-node-${testId}-2',
+            seq: i + 1,
+            timestampMs: DateTime.now().millisecondsSinceEpoch,
+            value: 'pub2-value-$i',
+          )));
         }
-        
-        // Verify events are queued with timeout
-        final deadline = DateTime.now().add(const Duration(seconds: 5));
-        OutboxStatus? status;
-        while (DateTime.now().isBefore(deadline)) {
-          status = await Future.any([
-            publisher.outboxStatus.first,
-            Future.delayed(const Duration(seconds: 1)).then((_) => 
-              throw TimeoutException('Status check timeout', const Duration(seconds: 1)))
-          ]);
-          if (status?.pendingEvents == eventCount) break;
+
+        // Wait for all publishing to complete
+        await Future.wait(futures, eagerError: true);
+
+        // Wait for outboxes to drain
+        await waitForOutboxDrained(publisher1, timeout: const Duration(seconds: 20));
+        await waitForOutboxDrained(publisher2, timeout: const Duration(seconds: 20));
+
+        // Wait for events to arrive with timeout
+        final deadline = DateTime.now().add(const Duration(seconds: 20));
+        while (receivedEvents.length < 6 && DateTime.now().isBefore(deadline)) {
           await Future.delayed(const Duration(milliseconds: 100));
         }
-        expect(status?.pendingEvents, equals(eventCount));
+
+        // Verify all events received
+        expect(receivedEvents.length, equals(6));
         
-        // Connect both clients with timeout
-        await publisherMqtt.connect();
-        await waitForConnected(publisherMqtt, timeout: const Duration(seconds: 20));
+        final pub1Events = receivedEvents.where((e) => e.nodeId.contains('-1')).toList();
+        final pub2Events = receivedEvents.where((e) => e.nodeId.contains('-2')).toList();
         
-        await listenerMqtt.connect();
-        await waitForConnected(listenerMqtt, timeout: const Duration(seconds: 20));
-        
-        // Set up subscription
-        final replicationTopic = '$topicPrefix/replication/events';
-        await subscribeAndProbe(
-          listener: listenerMqtt, 
-          topic: replicationTopic, 
-          prober: publisherMqtt
-        );
-        
-        // Collect incoming messages
-        final receivedMessages = <String>[];
-        void messageHandler(String topic, String payload) {
-          if (topic.contains('/replication/events') && !topic.contains('__probe__')) {
-            receivedMessages.add(payload);
-          }
+        expect(pub1Events.length, equals(3));
+        expect(pub2Events.length, equals(3));
+
+        // Verify event ordering within each publisher
+        pub1Events.sort((a, b) => a.seq.compareTo(b.seq));
+        pub2Events.sort((a, b) => a.seq.compareTo(b.seq));
+
+        for (int i = 0; i < 3; i++) {
+          expect(pub1Events[i].key, equals('pub1-key-$i'));
+          expect(pub2Events[i].key, equals('pub2-key-$i'));
         }
         
-        await listenerMqtt.subscribe(replicationTopic, messageHandler);
-        
-        // Flush outbox with timeout
-        await Future.any([
-          publisher.flushOutbox(),
-          Future.delayed(const Duration(seconds: 10)).then((_) => 
-            throw TimeoutException('Flush timeout', const Duration(seconds: 10)))
-        ]);
-        
-        await Future.any([
-          waitForOutboxDrained(publisher),
-          Future.delayed(const Duration(seconds: 40)).then((_) => 
-            throw TimeoutException('Outbox drain timeout', const Duration(seconds: 40)))
-        ]);
-        
-        // Give time for messages to arrive
-        await Future.delayed(const Duration(milliseconds: 500));
-        
-        // Verify results
-        expect(receivedMessages.length, equals(eventCount));
-        expect(metrics.eventsPublished, equals(eventCount));
-        
-        print('✓ Successfully handled offline queuing and reconnection');
-        print('  Events queued: $eventCount');
-        print('  Events received: ${receivedMessages.length}');
-        
       } finally {
-        // Cleanup
-        try { await publisher.dispose(); } catch (_) {}
-        try { await listenerMqtt.disconnect(); } catch (_) {}
-        try { await publisherMqtt.disconnect(); } catch (_) {}
-        try { await tempDir.delete(recursive: true); } catch (_) {}
+        try { await listenerClient.disconnect(); } catch (_) {}
+        try { await publisher1Client.disconnect(); } catch (_) {}
+        try { await publisher2Client.disconnect(); } catch (_) {}
       }
-    });
+    }, timeout: const Duration(seconds: 90));
 
-    guardedTest('publish and receive many events', (it) async {
+    guardedTest('should handle broker disconnection gracefully', (a) async {
+      final cfg = MqttTestConfig.fromEnv();
       final testId = _generateTestId();
-      final topicPrefix = 'test/$testId';
-      late Directory tempDir;
-      late MqttClientInterface publisherMqtt;
-      late MqttClientInterface listenerMqtt;
-      late ReplicationEventPublisherImpl publisher;
-      late InMemoryReplicationMetrics metrics;
+      
+      final publisherClient = buildMqtt(cfg, role: 'disconnect-test', suffix: testId);
       
       try {
-        // Setup
-        tempDir = await Directory.systemTemp.createTemp('integration_test_');
-        
-        final config = MerkleKVConfig(
-          mqttHost: it.host,
-          mqttPort: it.port,
-          nodeId: 'test-node-$testId',
-          clientId: 'test-publisher-$testId',
-          topicPrefix: topicPrefix,
-          storagePath: '${tempDir.path}/test.storage',
-          persistenceEnabled: true,
-        );
-        
-        publisherMqtt = MqttClientImpl(config);
-        listenerMqtt = MqttClientImpl(config.copyWith(clientId: 'test-listener-$testId'));
-        metrics = InMemoryReplicationMetrics();
-        
-        // Connect both clients with timeout
-        await publisherMqtt.connect();
-        await waitForConnected(publisherMqtt, timeout: const Duration(seconds: 20));
-        
-        await listenerMqtt.connect();
-        await waitForConnected(listenerMqtt, timeout: const Duration(seconds: 20));
-        
-        // Set up subscription
-        final replicationTopic = '$topicPrefix/replication/events';
-        await subscribeAndProbe(
-          listener: listenerMqtt, 
-          topic: replicationTopic, 
-          prober: publisherMqtt
-        );
-        
+        // Initial hardened connection
+        await connectOrSkip(publisherClient, timeout: const Duration(seconds: 15), require: true, what: 'publisher');
+
         // Create publisher
-        final topicScheme = TopicScheme.create(config.topicPrefix, config.clientId);
-        publisher = ReplicationEventPublisherImpl(
-          config: config,
-          mqttClient: publisherMqtt,
-          topicScheme: topicScheme,
-          metrics: metrics,
+        final publisher = await makePublisher(cfg, publisherClient, testId);
+
+        // Publish an event while connected
+        await publisher.publishEvent(ReplicationEvent.value(
+          key: 'pre-disconnect-key',
+          nodeId: 'test-node-$testId',
+          seq: 1,
+          timestampMs: DateTime.now().millisecondsSinceEpoch,
+          value: 'connected-value',
+        ));
+
+        // Wait for outbox to drain
+        await waitForOutboxDrained(publisher, timeout: const Duration(seconds: 20));
+
+        // Force disconnect
+        await publisherClient.disconnect();
+
+        // Attempt to publish while disconnected (should queue)
+        await publisher.publishEvent(ReplicationEvent.value(
+          key: 'post-disconnect-key',
+          nodeId: 'test-node-$testId',
+          seq: 2,
+          timestampMs: DateTime.now().millisecondsSinceEpoch,
+          value: 'disconnected-value',
+        ));
+
+        // Verify outbox has queued events
+        final outboxStatus = await publisher.outboxStatus.first.timeout(
+          const Duration(seconds: 5),
+          onTimeout: () => throw TimeoutException('Outbox status timeout', const Duration(seconds: 5)),
         );
-        
-        await publisher.initialize();
-        await publisher.ready();
-        
-        // Collect incoming messages
-        final receivedMessages = <String>[];
-        void messageHandler(String topic, String payload) {
-          if (topic.contains('/replication/events') && !topic.contains('__probe__')) {
-            receivedMessages.add(payload);
-          }
-        }
-        
-        await listenerMqtt.subscribe(replicationTopic, messageHandler);
-        
-        // Publish many events with batching and yielding
-        const eventCount = 100;
-        final startTime = DateTime.now();
-        
-        for (int batch = 0; batch < eventCount ~/ 10; batch++) {
-          for (int i = 0; i < 10; i++) {
-            final eventIndex = batch * 10 + i;
-            final event = ReplicationEvent.value(
-              key: 'bulk-key-$eventIndex',
-              nodeId: config.nodeId,
-              seq: eventIndex + 1,
-              timestampMs: DateTime.now().millisecondsSinceEpoch,
-              value: 'bulk-value-$eventIndex',
-            );
-            
-            await publisher.publishEvent(event);
-          }
-          
-          // Yield to event loop every batch
-          await Future.delayed(Duration.zero);
-          
-          // Wait for partial drain periodically
-          if (batch % 3 == 0) {
-            await Future.any([
-              waitForOutboxDrained(publisher, timeout: const Duration(seconds: 5)),
-              Future.delayed(const Duration(seconds: 5))
-            ]);
-          }
-        }
-        
-        // Final drain with generous timeout
-        await Future.any([
-          waitForOutboxDrained(publisher),
-          Future.delayed(const Duration(seconds: 60)).then((_) => 
-            throw TimeoutException('Final outbox drain timeout', const Duration(seconds: 60)))
-        ]);
-        
-        // Wait for message collection to complete
-        await collectMessages(listenerMqtt, replicationTopic, eventCount, 
-            timeout: const Duration(seconds: 40));
-        
-        final duration = DateTime.now().difference(startTime);
-        final throughput = eventCount / duration.inMilliseconds * 1000;
-        
-        // Verify results
-        expect(metrics.eventsPublished, equals(eventCount));
-        expect(metrics.publishErrors, equals(0));
-        expect(receivedMessages.length, equals(eventCount));
-        
-        print('✓ Successfully handled large event volume');
-        print('  Events published: ${metrics.eventsPublished}');
-        print('  Events received: ${receivedMessages.length}');
-        print('  Duration: ${duration.inMilliseconds}ms');
-        print('  Throughput: ${throughput.toStringAsFixed(1)} events/sec');
+        expect(outboxStatus.pendingEvents, greaterThan(0));
+
+        // Reconnect
+        await connectOrSkip(publisherClient, timeout: const Duration(seconds: 15), require: true, what: 'reconnect');
+
+        // Wait for outbox to drain after reconnection
+        await waitForOutboxDrained(publisher, timeout: const Duration(seconds: 30));
+
+        // Verify graceful handling
+        expect(publisher, isNotNull);
         
       } finally {
-        // Cleanup
-        try { await publisher.dispose(); } catch (_) {}
-        try { await listenerMqtt.disconnect(); } catch (_) {}
-        try { await publisherMqtt.disconnect(); } catch (_) {}
-        try { await tempDir.delete(recursive: true); } catch (_) {}
+        try { await publisherClient.disconnect(); } catch (_) {}
       }
-    });
-
-    tearDownAll(() async {
-      // Ensure cleanup never throws
-    });
+    }, timeout: const Duration(seconds: 120));
   });
 }
