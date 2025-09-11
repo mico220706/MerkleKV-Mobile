@@ -200,7 +200,7 @@ class CommandProcessorImpl implements CommandProcessor {
             if (validation != null) {
               response = Response.invalidRequest(command.id, validation);
             } else {
-              response = await mget(command.keys!);
+              response = await mget(command.keys!, command.id);
             }
           }
           break;
@@ -219,7 +219,7 @@ class CommandProcessorImpl implements CommandProcessor {
             if (validation != null) {
               response = Response.invalidRequest(command.id, validation);
             } else {
-              response = await mset(stringKeyValues);
+              response = await mset(stringKeyValues, command.id);
             }
           }
           break;
