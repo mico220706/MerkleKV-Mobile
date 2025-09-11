@@ -147,9 +147,13 @@ class DeduplicationTracker {
     this.ttl = const Duration(days: 7),
     this.maxNodes = 1000,
   }) {
-    // Start periodic cleanup
+    // Start periodic cleanup - more frequent for short TTLs
+    final cleanupInterval = ttl.inMilliseconds < 1000 
+        ? Duration(milliseconds: (ttl.inMilliseconds / 2).round().clamp(10, 500))
+        : const Duration(minutes: 30);
+    
     _cleanupTimer = Timer.periodic(
-      const Duration(minutes: 30), 
+      cleanupInterval, 
       (_) => _performCleanup(),
     );
   }
@@ -239,8 +243,8 @@ class DeduplicationTracker {
     return {
       'totalChecks': _totalChecks,
       'duplicateHits': _duplicateHits,
-      'windowEvictions': _windowAdvanceCount, // Window advance count for sliding window performance tests
-      'nodeEvictions': _windowEvictions, // LRU node evictions
+      'windowEvictions': _windowAdvanceCount + _windowEvictions, // Combined for backward compatibility
+      'nodeEvictions': _windowEvictions, // LRU node evictions only
       'ttlEvictions': _ttlEvictions,
       'activeNodes': _nodeWindows.length,
       'estimatedMemoryBytes': estimatedMemoryBytes,
