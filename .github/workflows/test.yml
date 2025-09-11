@@ -37,8 +37,6 @@ jobs:
 
   integration:
     runs-on: ubuntu-latest
-    container:
-      image: dart:3.9.3
     defaults:
       run:
         working-directory: packages/merkle_kv_core
@@ -48,43 +46,60 @@ jobs:
       IT_REQUIRE_BROKER: '1'
     steps:
       - uses: actions/checkout@v4
+      - name: Install netcat for connectivity testing
+        run: sudo apt-get update && sudo apt-get install -y netcat-openbsd
       - name: Start Mosquitto broker
         run: |
-          apt-get update && apt-get install -y netcat-traditional docker.io
+          # Start Mosquitto broker on host
           docker run -d \
             --name mosquitto \
             -p 1883:1883 \
             -v ${{ github.workspace }}/.ci/mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf \
             eclipse-mosquitto:2
+          
           # Wait for Mosquitto to be ready
+          echo "Waiting for Mosquitto broker to start..."
           for i in {1..30}; do
-            if nc -z 127.0.0.1 1883; then
-              echo "Mosquitto is ready"
+            if nc -z 127.0.0.1 1883 2>/dev/null; then
+              echo "✅ Mosquitto is ready on port 1883"
               break
             fi
             echo "Waiting for Mosquitto... ($i/30)"
-            sleep 1
+            sleep 2
           done
-      - name: Fix missing frontend_server.dart.snapshot
+          
+          # Verify broker is running
+          docker ps | grep mosquitto
+          docker logs mosquitto
+      - name: Setup Dart SDK
+        uses: dart-lang/setup-dart@v1
+        with:
+          sdk: stable
+      - name: Clean Dart cache to avoid corruption
         run: |
-          # Remove the AOT snapshot and let Dart regenerate JIT snapshot on demand
-          rm -f /usr/lib/dart/bin/snapshots/frontend_server.dart.snapshot
-          rm -f /usr/lib/dart/bin/snapshots/frontend_server_aot.dart.snapshot
-          # Warm up dart to generate snapshots
-          dart --version
-          echo 'void main() { print("test"); }' > /tmp/warmup.dart
-          dart run /tmp/warmup.dart || true
-      - run: dart pub get
+          rm -rf ~/.dart
+          rm -rf ~/.pub-cache
+      - name: Integration smoke test
+        run: |
+          dart pub get
+          dart pub deps
+          dart analyze --no-fatal-warnings
       - name: Run integration tests
         run: |
           # Basic integration validation bypassing broken dart test framework
           echo "🚀 Running basic integration validation..."
           
           # Test MQTT connectivity using netcat
-          if nc -z 127.0.0.1 1883; then
+          if nc -z 127.0.0.1 1883 2>/dev/null; then
             echo "✅ MQTT broker is accessible on port 1883"
           else
             echo "❌ MQTT broker is not accessible"
+            echo "Debug: Docker containers running:"
+            docker ps
+            echo "Debug: Mosquitto logs:"
+            docker logs mosquitto || true
+            echo "Debug: Network connections:"
+            netstat -tulpn | grep 1883 || true
             exit 1
           fi
           
