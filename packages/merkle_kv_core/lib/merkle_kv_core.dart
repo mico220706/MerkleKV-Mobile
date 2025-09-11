@@ -30,6 +30,8 @@ export 'src/storage/storage_factory.dart';
 
 // Replication
 export 'src/replication/cbor_serializer.dart';
+export 'src/replication/event_publisher.dart';
+export 'src/replication/metrics.dart';
 
 // Core exports will be added in future phases
 // export 'src/merkle_kv_mobile.dart';
