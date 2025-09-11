@@ -2,7 +2,6 @@ import 'packages/merkle_kv_core/lib/src/replication/event_applicator.dart';
 import 'packages/merkle_kv_core/lib/src/replication/metrics.dart';
 import 'packages/merkle_kv_core/lib/src/storage/in_memory_storage.dart';
 import 'packages/merkle_kv_core/lib/src/replication/lww_resolver.dart';
-import 'packages/merkle_kv_core/lib/src/replication/event_applicator.dart';
 import 'packages/merkle_kv_core/lib/src/models/response_models.dart';
 
 void main() async {
