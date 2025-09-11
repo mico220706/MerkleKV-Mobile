@@ -19,19 +19,19 @@ jobs:
     defaults:
       run:
         working-directory: packages/merkle_kv_core
-    services:
-      mosquitto:
-        image: eclipse-mosquitto:2
-        ports: ['1883:1883']
-        # Mount our permissive config so the broker accepts connections
-        options: >-
-          -v ${{ github.workspace }}/.ci/mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf
     env:
       MQTT_HOST: 127.0.0.1
       MQTT_PORT: 1883
       IT_REQUIRE_BROKER: '1'
     steps:
       - uses: actions/checkout@v4
+      - name: Start Mosquitto broker
+        run: |
+          docker run -d \
+            --name mosquitto \
+            -p 1883:1883 \
+            -v ${{ github.workspace }}/.ci/mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf \
+            eclipse-mosquitto:2
       - uses: dart-lang/setup-dart@v1
       - run: dart pub get
       - run: dart test -t integration --timeout=90s --chain-stack-traces
