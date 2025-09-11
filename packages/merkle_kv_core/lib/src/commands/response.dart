@@ -197,6 +197,9 @@ class Response {
     );
   }
 
+  /// Returns true if this response is a bulk operation response. 
+  bool get isBulkResponse => results != null;
+
   /// Creates an idempotent replay response.
   factory Response.idempotentReplay(String id, dynamic value) {
     return Response(
@@ -220,8 +223,20 @@ class Response {
   ///
   /// Validates required fields and throws [FormatException] for invalid format.
   factory Response.fromJson(Map<String, dynamic> json) {
-    final responseStatus = ResponseStatus.fromString(json['status']);
-    
+    final id = json['id'];
+    final status = json['status'];
+
+    if (id == null || id is! String) {
+      throw const FormatException('Missing or invalid "id" field');
+    }
+
+    if (status == null || status is! String) {
+      throw const FormatException('Missing or invalid "status" field');
+    }
+
+    final responseStatus = ResponseStatus.fromString(status);
+
+    // ADD THIS: Handle bulk results
     List<KeyValueResult>? results;
     if (json['results'] != null) {
       results = (json['results'] as List)
@@ -230,17 +245,17 @@ class Response {
     }
 
     return Response(
-      id: json['id'] as String,
+      id: id,
       status: responseStatus,
       value: json['value'],
       error: json['error'] as String?,
       errorCode: json['errorCode'] as int?,
       metadata: (json['metadata'] as Map?)?.cast<String, dynamic>(),
-      results: results,
+      results: results,  // ADD THIS
     );
   }
 
-  /// Converts Response to JSON object for serialization.
+/// Converts Response to JSON object for serialization.
   Map<String, dynamic> toJson() {
     final json = <String, dynamic>{
       'id': id,
@@ -251,6 +266,7 @@ class Response {
     if (error != null) json['error'] = error;
     if (errorCode != null) json['errorCode'] = errorCode;
     if (metadata != null) json['metadata'] = metadata;
+    // ADD THIS: Include bulk results
     if (results != null) {
       json['results'] = results!.map((r) => r.toJson()).toList();
     }
@@ -283,9 +299,6 @@ class Response {
   /// Returns true if this response is from an idempotent replay.
   bool get isIdempotentReplay => errorCode == ErrorCode.idempotentReplay;
 
-  /// Returns true if this response is a bulk operation response.  
-  bool get isBulkResponse => results != null;
-
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -296,7 +309,8 @@ class Response {
           value == other.value &&
           error == other.error &&
           errorCode == other.errorCode &&
-          _mapEquals(metadata, other.metadata);
+          _mapEquals(metadata, other.metadata) &&
+          _listEquals(results, other.results);  
 
   @override
   int get hashCode =>
@@ -305,7 +319,28 @@ class Response {
       value.hashCode ^
       error.hashCode ^
       errorCode.hashCode ^
-      _mapHashCode(metadata);
+      _mapHashCode(metadata) ^
+      _listHashCode(results);  
+
+  // Helper method for list equality
+  bool _listEquals(List? a, List? b) {
+    if (a == null) return b == null;
+    if (b == null || a.length != b.length) return false;
+    for (int i = 0; i < a.length; i++) {
+      if (a[i] != b[i]) return false;
+    }
+    return true;
+  }
+
+  // Helper method for list hash code
+  int _listHashCode(List? list) {
+    if (list == null) return 0;
+    int hash = 0;
+    for (final item in list) {
+      hash ^= item.hashCode;
+    }
+    return hash;
+  }
 
   @override
   String toString() =>

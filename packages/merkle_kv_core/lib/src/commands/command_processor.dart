@@ -241,6 +241,7 @@ class CommandProcessorImpl implements CommandProcessor {
       error: response.error,
       errorCode: response.errorCode,
       metadata: response.metadata,
+      results: response.results,
     );
 
     // Cache successful responses
@@ -427,7 +428,7 @@ Future<Response> mset(Map<String, String> keyValues, String id) async {
       // Generate replication event (one per successful key)
       // await _emitReplicationEvent(storageEntry, 'SET');
       
-      results.add(KeyValueResult.ok(key, '')); // MSET doesn't return values
+      results.add(KeyValueResult.ok(key, null)); // MSET doesn't return values
       
     } catch (e) {
       results.add(KeyValueResult.error(
