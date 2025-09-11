@@ -3,8 +3,8 @@ import 'package:merkle_kv_core/merkle_kv_core.dart';
 
 /// Example demonstrating replication event publishing
 void main() async {
-  // Configuration
-  final config = MerkleKVConfig(
+  // Configuration  
+  MerkleKVConfig(
     mqttHost: 'broker.example.com',
     nodeId: 'node-1',
     clientId: 'client-1',

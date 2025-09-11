@@ -3,7 +3,6 @@
 // Simple standalone test to verify MQTT broker connectivity
 import 'dart:async';
 import 'dart:io';
-import 'dart:math';
 
 import 'lib/src/mqtt/mqtt_client_impl.dart';
 import 'lib/src/mqtt/connection_state.dart';
