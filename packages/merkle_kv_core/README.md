@@ -1,6 +1,21 @@
-# MerkleKV Mobile
+# MerkleKV Core
 
 A distributed key-value store optimized for mobile edge devices with MQTT-based communication and replication.
+
+## Features
+
+### Enhanced Replication System
+- **Event Publisher**: Reliable replication event publishing with persistent outbox queue
+- **CBOR Serialization**: Efficient binary encoding for replication events
+- **Monotonic Sequencing**: Ordered event delivery with automatic recovery
+- **Observability**: Comprehensive metrics for monitoring replication health
+- **Offline Resilience**: Buffered delivery with at-least-once guarantee
+
+### Core Platform
+- **MQTT Communication**: Request-response pattern over MQTT with correlation
+- **In-Memory Storage**: Fast key-value store with Last-Write-Wins conflict resolution  
+- **Command Processing**: GET/SET/DEL operations with validation and error handling
+- **Configuration Management**: Type-safe, immutable configuration with validation
 
 ## Installation
 
@@ -15,6 +30,49 @@ Then run:
 
 ```bash
 flutter pub get
+```
+
+## Quick Start
+
+### Basic Usage
+
+```dart
+import 'package:merkle_kv_core/merkle_kv_core.dart';
+
+// Configure the client
+final config = MerkleKVConfig(
+  mqttHost: 'broker.example.com',
+  nodeId: 'mobile-device-1',
+  clientId: 'app-instance-1',
+);
+
+// Initialize and start
+final client = MerkleKVMobile(config);
+await client.start();
+
+// Basic operations
+await client.set('user:123', 'Alice');
+final value = await client.get('user:123');
+await client.delete('user:123');
+```
+
+### Event Publishing
+
+```dart
+// Enable replication event publishing
+final config = MerkleKVConfig(
+  mqttHost: 'broker.example.com', 
+  nodeId: 'mobile-device-1',
+  clientId: 'app-instance-1',
+  enableReplication: true,
+);
+
+final client = MerkleKVMobile(config);
+await client.start();
+
+// Operations automatically publish replication events
+await client.set('key', 'value'); // Publishes SET event
+await client.delete('key');       // Publishes DEL event
 ```
 
 ## Replication: CBOR Encoding/Decoding

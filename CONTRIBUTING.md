@@ -3,6 +3,14 @@
 Thank you for your interest in contributing to MerkleKV Mobile! This document provides guidelines for
 contributing to our MQTT-based distributed key-value store with Merkle tree replication.
 
+## 🚀 Latest Updates
+
+### Enhanced Replication System (Current)
+- **Event Publisher**: Production-ready replication with persistent outbox queue
+- **CBOR Serialization**: Efficient binary encoding for replication events  
+- **Observability**: Comprehensive metrics and monitoring capabilities
+- **CI/CD**: Robust testing pipeline with MQTT broker integration
+
 ## 🎯 Project Overview
 
 MerkleKV Mobile is an **MQTT-only** distributed key-value store with **Locked Specification v1.0**.
@@ -336,6 +344,34 @@ Contributors are recognized in:
 ## 📄 License
 
 By contributing to MerkleKV Mobile, you agree that your contributions will be licensed under the project's license terms.
+
+### Running Integration Tests
+
+- **Start broker (Docker)**:
+  ```bash
+  docker run -d --rm --name mosquitto -p 1883:1883 eclipse-mosquitto:2
+  # For Mosquitto v2, if connections are refused, run with a config that enables:
+  #   listener 1883 0.0.0.0
+  #   allow_anonymous true
+  ```
+
+- **Environment (defaults)**:
+  ```bash
+  export MQTT_HOST=127.0.0.1
+  export MQTT_PORT=1883
+  ```
+
+- **Execute**:
+  ```bash
+  dart test -t integration --timeout=90s
+  ```
+
+- **Enforce broker requirement (CI/strict runs)**:
+  ```bash
+  IT_REQUIRE_BROKER=1 dart test -t integration --timeout=90s
+  ```
+
+- **Dev default gracefully skips when no broker is available** (`IT_REQUIRE_BROKER=0`).
 
 ---
 

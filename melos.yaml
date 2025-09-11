@@ -25,8 +25,8 @@ scripts:
       failFast: true
   
   test:melos:dart:
-    description: Run Dart tests for pure Dart packages
-    run: dart test --reporter=expanded --timeout=30s
+    description: Run Dart tests for pure Dart packages (excluding integration tests)
+    run: dart test -x integration --reporter=expanded --timeout=30s
     exec:
       failFast: true
     packageFilters:
