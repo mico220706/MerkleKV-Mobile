@@ -426,12 +426,12 @@ void main() {
           }
         });
 
-        // Verify subscription with probe
+        // Verify subscription with probe (increased timeout for CI reliability)
         await subscribeAndProbe(
           listener: listenerClient,
           topic: 'test/$testId/replication/events',
           prober: publisherClient,
-          timeout: const Duration(seconds: 8),
+          timeout: const Duration(seconds: 20),
         );
 
         // Publish test event
@@ -496,18 +496,18 @@ void main() {
           }
         });
 
-        // Verify subscription with probes
+        // Verify subscription with probes (increased timeout for CI reliability)
         await subscribeAndProbe(
           listener: listenerClient,
           topic: 'test/${testId}-1/replication/events',
           prober: publisher1Client,
-          timeout: const Duration(seconds: 8),
+          timeout: const Duration(seconds: 20),
         );
         await subscribeAndProbe(
           listener: listenerClient,
           topic: 'test/${testId}-2/replication/events',
           prober: publisher2Client,
-          timeout: const Duration(seconds: 8),
+          timeout: const Duration(seconds: 20),
         );
 
         // Publish concurrent events

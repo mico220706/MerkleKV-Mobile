@@ -1,0 +1,18 @@
+# Dart test configuration for merkle_kv_core package
+
+# Define test tags
+tags:
+  integration:
+    description: "Integration tests that require external dependencies (e.g., MQTT broker)"
+
+# Default test configuration
+timeout: 30s
+reporter: expanded
+
+# Platform-specific settings
+platforms:
+  vm:
+    timeout: 30s
+
+# Test file patterns
+test_randomize_ordering_seed: random
