@@ -8,7 +8,20 @@ Specification v1.0 compliance.
 
 ## [Unreleased]
 
-### Added
+### Added - Enhanced Replication System (PR #58)
+
+- **Enhanced Event Publisher** (Locked Spec §7): Complete replication event publishing system with reliable delivery guarantees
+  - Persistent outbox queue with offline resilience and automatic retry logic
+  - Monotonic sequence numbers with automatic recovery and gap detection  
+  - At-least-once delivery guarantee using MQTT QoS=1 with acknowledgment tracking
+  - Comprehensive observability metrics for monitoring publish rates, queue status, and delivery health
+  - Configurable flush batching with size and time-based triggers
+- **Production-Ready CI/CD**: Robust GitHub Actions workflow with MQTT broker integration testing
+  - System-level Mosquitto broker setup for integration validation
+  - Simplified smoke tests focusing on dependency resolution and connectivity
+  - Reliable CI pipeline avoiding Dart SDK corruption issues
+
+### Added - Core Platform (Phase 1)
 
 - **CBOR serializer for replication change events** (Spec §3.3, §11): deterministic encoding, tombstone handling, and strict ≤300 KiB size limit with comprehensive tests.
 - **MerkleKVConfig** (Locked Spec §11): Immutable config, defaults, validation, secure JSON (secrets excluded), `copyWith`, `defaultConfig`.

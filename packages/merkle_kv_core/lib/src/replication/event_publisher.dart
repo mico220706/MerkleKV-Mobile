@@ -123,6 +123,7 @@ class ReplicationEventPublisherImpl implements ReplicationEventPublisher {
   StreamSubscription<dynamic>? _connectionSubscription;
   bool _initialized = false;
   bool _disposed = false;
+  bool _flushing = false;
   
   final Completer<void> _ready = Completer<void>();
 
@@ -176,11 +177,11 @@ class ReplicationEventPublisherImpl implements ReplicationEventPublisher {
   @override
   Future<void> publishEvent(ReplicationEvent event) async {
     if (_disposed) {
-      throw StateError('ReplicationEventPublisher has been disposed.');
+      throw StateError('ReplicationEventPublisher disposed');
     }
     
+    _ensureInitialized(); // Check initialization before awaiting ready()
     await ready();
-    _ensureInitialized();
     
     final startTime = DateTime.now();
     
@@ -213,60 +214,67 @@ class ReplicationEventPublisherImpl implements ReplicationEventPublisher {
   @override
   Future<void> flushOutbox() async {
     if (_disposed) {
-      throw StateError('ReplicationEventPublisher has been disposed.');
+      throw StateError('ReplicationEventPublisher disposed');
     }
     
+    _ensureInitialized(); // Check initialization before awaiting ready()
     await ready();
-    _ensureInitialized();
     
-    if (!await _isOnline()) {
-      return; // Cannot flush while offline
-    }
-
-    final startTime = DateTime.now();
-    
-    // Peek at batch instead of draining immediately
-    final batchSize = 100; // Process in batches
-    final batch = await _outboxQueue.peekBatch(batchSize);
-    
-    if (batch.isEmpty) {
-      return; // Safety check - break on empty batch
-    }
-
-    var publishedCount = 0;
-    final failedEvents = <ReplicationEvent>[];
-
-    for (final event in batch) {
-      if (_disposed || !await _isOnline()) {
-        // Safety check - break on disposal or disconnection
-        break;
-      }
+    _flushing = true;
+    try {
+      final startTime = DateTime.now();
       
-      try {
-        await _publishEventToMqtt(event);
-        publishedCount++;
-        _metrics.incrementEventsPublished();
-      } catch (e) {
-        _metrics.incrementPublishErrors();
-        // Re-queue failed events
-        failedEvents.add(event);
-      }
-    }
+      while (await _isOnline() && !_disposed) {
+        // Peek at batch instead of draining immediately
+        final batchSize = 100; // Process in batches
+        final batch = await _outboxQueue.peekBatch(batchSize);
+        
+        if (batch.isEmpty) {
+          break; // Safety check - break on empty batch
+        }
 
-    // Only acknowledge the batch if we have events and we're still connected
-    if (batch.isNotEmpty && publishedCount > 0) {
-      // Remove processed events from queue
-      await _outboxQueue.drainAll();
-      
-      // Re-queue any failed events
-      for (final event in failedEvents) {
-        await _outboxQueue.enqueue(event);
-      }
+        var publishedCount = 0;
+        
+        for (final event in batch) {
+          if (!await _isOnline() || _disposed) {
+            break; // Break if disconnected or disposed
+          }
+          
+          try {
+            await _publishEventToMqtt(event);
+            publishedCount++;
+            _metrics.incrementEventsPublished();
+          } catch (e) {
+            _metrics.incrementPublishErrors();
+            break; // Stop on first error
+          }
+          
+          // Yield between publishes to prevent starvation
+          await Future<void>.delayed(Duration.zero);
+        }
 
-      await _outboxQueue.recordFlush();
-      
-      final flushDuration = DateTime.now().difference(startTime).inMilliseconds;
-      _metrics.recordFlushDuration(flushDuration);
+        // Mark batch as acknowledged only if we have events and published some
+        if (batch.isNotEmpty && publishedCount > 0) {
+          await _outboxQueue.markBatchAcked(publishedCount);
+          
+          if (publishedCount == batch.length) {
+            await _outboxQueue.recordFlush();
+            
+            final flushDuration = DateTime.now().difference(startTime).inMilliseconds;
+            _metrics.recordFlushDuration(flushDuration);
+          }
+        }
+        
+        // If we couldn't publish the full batch, stop
+        if (publishedCount < batch.length) {
+          break;
+        }
+        
+        // Yield after each batch
+        await Future<void>.delayed(Duration.zero);
+      }
+    } finally {
+      _flushing = false;
     }
 
     _emitStatus();
@@ -387,8 +395,13 @@ class SequenceManager {
     _initialized = true;
   }
 
-  /// Recovers sequence state from storage
+  /// Recovers sequence state from storage - idempotent operation
   Future<void> recover() async {
+    // Idempotent: skip if already initialized
+    if (_initialized) {
+      return;
+    }
+    
     await initialize();
   }
 
@@ -396,7 +409,10 @@ class SequenceManager {
   int getNextSequence() {
     _ensureInitialized();
     _currentSeq++;
-    _persistSequence(); // Fire and forget
+    
+    // Incremental persistence to avoid corruption on crash
+    _persistSequence();
+    
     return _currentSeq;
   }
 
@@ -406,7 +422,7 @@ class SequenceManager {
     }
   }
 
-  /// Recovers sequence number from persistent storage
+  /// Recovers sequence number from persistent storage with corruption handling
   Future<void> _recoverSequence() async {
     if (_sequenceFile == null || !await _sequenceFile!.exists()) {
       return;
@@ -414,19 +430,36 @@ class SequenceManager {
 
     try {
       final content = await _sequenceFile!.readAsString();
-      final data = jsonDecode(content.trim()) as Map<String, dynamic>;
-      final recoveredSeq = data['seq'] as int;
       
-      // Ensure strictly increasing sequence
-      _currentSeq = recoveredSeq;
+      // Handle both single JSON and JSONL (append mode) formats
+      if (content.contains('\n')) {
+        // JSONL format - take the last valid line
+        final lines = content.trim().split('\n').where((line) => line.isNotEmpty);
+        if (lines.isNotEmpty) {
+          final lastLine = lines.last;
+          final data = jsonDecode(lastLine) as Map<String, dynamic>;
+          _currentSeq = data['seq'] as int;
+        }
+      } else {
+        // Single JSON format
+        final data = jsonDecode(content.trim()) as Map<String, dynamic>;
+        _currentSeq = data['seq'] as int;
+      }
     } catch (e) {
       // If recovery fails, start from 0 - this is safe as sequence
       // only needs to be monotonic per node
       _currentSeq = 0;
+      
+      // Clear corrupted file
+      try {
+        await _sequenceFile!.delete();
+      } catch (_) {
+        // Ignore deletion errors
+      }
     }
   }
 
-  /// Persists current sequence number
+  /// Persists current sequence number with incremental writes
   Future<void> _persistSequence() async {
     if (_sequenceFile == null) return;
 
@@ -437,8 +470,10 @@ class SequenceManager {
         await dir.create(recursive: true);
       }
 
+      // Use incremental append for better crash safety
       final data = {'seq': _currentSeq, 'updated': DateTime.now().toIso8601String()};
-      await _sequenceFile!.writeAsString(jsonEncode(data));
+      final line = '${jsonEncode(data)}\n';
+      await _sequenceFile!.writeAsString(line, mode: FileMode.append);
     } catch (e) {
       // Silently handle persistence failures - sequence only needs to be
       // monotonic within a session if persistence fails
@@ -486,9 +521,9 @@ class OutboxQueue {
   Future<void> enqueue(ReplicationEvent event) async {
     await _ensureInitializedAsync();
     
-    // Apply bounded queue policy - drop oldest if at limit
+    // Apply bounded queue policy - drop oldest if at limit (atomic)
     if (_queue.length >= _defaultMaxSize) {
-      _queue.removeAt(0); // Drop oldest
+      _queue.removeAt(0); // Drop oldest atomically before adding
     }
     
     _queue.add(event);
@@ -503,6 +538,23 @@ class OutboxQueue {
     await _ensureInitializedAsync();
     final endIndex = (_queue.length < maxSize) ? _queue.length : maxSize;
     return _queue.sublist(0, endIndex);
+  }
+
+  /// Mark a batch as acknowledged and remove from queue
+  Future<void> markBatchAcked(int count) async {
+    await _ensureInitializedAsync();
+    if (count > 0 && count <= _queue.length) {
+      _queue.removeRange(0, count);
+      if (_config.persistenceEnabled) {
+        await _persistOutbox();
+      }
+    }
+  }
+
+  /// Returns current queue size (length)
+  Future<int> get length async {
+    await _ensureInitializedAsync();
+    return _queue.length;
   }
 
   /// Drains all events from the queue
@@ -549,7 +601,7 @@ class OutboxQueue {
     }
   }
 
-  /// Loads outbox from persistent storage
+  /// Loads outbox from persistent storage with corruption handling
   Future<void> _loadOutbox() async {
     if (_outboxFile == null || !await _outboxFile!.exists()) {
       return;
@@ -562,17 +614,45 @@ class OutboxQueue {
       final data = jsonDecode(content) as Map<String, dynamic>;
       final eventsJson = data['events'] as List<dynamic>;
       
-      for (final eventJson in eventsJson) {
+      var lastGoodIndex = -1;
+      for (var i = 0; i < eventsJson.length; i++) {
         try {
-          final event = ReplicationEvent.fromJson(eventJson as Map<String, dynamic>);
+          final event = ReplicationEvent.fromJson(eventsJson[i] as Map<String, dynamic>);
           _queue.add(event);
+          lastGoodIndex = i;
         } catch (e) {
-          // Skip corrupted events but continue loading others
+          // Corruption detected - truncate at last good record
+          if (lastGoodIndex >= 0) {
+            // Keep only valid records up to lastGoodIndex
+            _queue.clear();
+            for (var j = 0; j <= lastGoodIndex; j++) {
+              final validEvent = ReplicationEvent.fromJson(eventsJson[j] as Map<String, dynamic>);
+              _queue.add(validEvent);
+            }
+          }
+          
+          // Truncate file to remove corrupted tail
+          if (_config.persistenceEnabled) {
+            await _persistOutbox();
+          }
+          break;
         }
       }
     } catch (e) {
-      // If outbox is corrupted, start fresh
+      // If entire file is corrupted, start fresh with empty queue
       _queue.clear();
+      
+      // Delete the corrupted file to prevent re-loading corruption
+      try {
+        await _outboxFile!.delete();
+      } catch (_) {
+        // Ignore deletion errors - file might not exist or be locked
+      }
+      
+      // Persist empty state
+      if (_config.persistenceEnabled) {
+        await _persistOutbox();
+      }
     }
   }
 

@@ -34,7 +34,18 @@ The system provides:
 - Efficient Merkle tree-based anti-entropy synchronization
 - Device-specific message routing using client IDs
 
-## What's New (Phase 1 — Core)
+## What's New (Enhanced Replication System)
+
+### Recent Updates (PR #58)
+
+- **Enhanced Event Publisher** (Locked Spec §7): Complete replication event publishing system with reliable delivery, persistent outbox queue, and comprehensive observability
+- **CBOR Serialization**: Efficient binary serialization for replication events using RFC 8949 standard
+- **Persistent Outbox Queue**: Buffered event delivery with offline resilience and at-least-once guarantee  
+- **Monotonic Sequence Numbers**: Ordered event delivery with automatic recovery and gap detection
+- **Comprehensive Metrics**: Built-in observability for monitoring publish rates, queue status, and delivery health
+- **Production-Ready CI**: Robust GitHub Actions workflow with MQTT broker testing and smoke tests
+
+### Core Features (Phase 1)
 
 - **MerkleKVConfig** (Locked Spec §11): Centralized, immutable configuration with strict validation, secure credential handling, JSON (sans secrets), `copyWith`, and defaults:
   - `keepAliveSeconds=60`, `sessionExpirySeconds=86400`, `skewMaxFutureMs=300000`, `tombstoneRetentionHours=24`.
@@ -616,6 +627,36 @@ void main() async {
 4. Integration tests with real MQTT brokers
 5. Flutter-specific integration tests
 6. End-to-end tests in a real mobile environment
+
+### Running Integration Tests (MQTT broker required)
+
+- Start a local broker (Docker):
+  ```bash
+  docker run -d --rm --name mosquitto -p 1883:1883 eclipse-mosquitto:2
+  ```
+
+- Environment (defaults):
+  ```bash
+  export MQTT_HOST=127.0.0.1
+  export MQTT_PORT=1883
+  ```
+
+- Execute tests:
+  ```bash
+  dart test -t integration --timeout=90s
+  ```
+
+- Enforce broker requirement (CI or strict local runs):
+  ```bash
+  IT_REQUIRE_BROKER=1 dart test -t integration --timeout=90s
+  ```
+
+- Stop the broker:
+  ```bash
+  docker stop mosquitto
+  ```
+
+Integration tests skip cleanly when no usable broker is present, unless `IT_REQUIRE_BROKER=1` is set, in which case they fail early by design.
 
 ## 📊 Performance Considerations
 
