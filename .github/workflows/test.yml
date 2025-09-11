@@ -46,18 +46,24 @@ jobs:
       IT_REQUIRE_BROKER: '1'
     steps:
       - uses: actions/checkout@v4
-      - name: Install netcat for connectivity testing
-        run: sudo apt-get update && sudo apt-get install -y netcat-openbsd
-      - name: Start Mosquitto broker
+      - name: Install and start Mosquitto broker
         run: |
-          # Start Mosquitto broker on host
-          docker run -d \
-            --name mosquitto \
-            -p 1883:1883 \
-            -v ${{ github.workspace }}/.ci/mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf \
-            eclipse-mosquitto:2
+          # Install mosquitto directly on the system
+          sudo apt-get update
+          sudo apt-get install -y mosquitto netcat-openbsd
           
-          # Wait for Mosquitto to be ready
+          # Configure mosquitto
+          sudo tee /etc/mosquitto/conf.d/testing.conf << EOF
+          listener 1883 0.0.0.0
+          allow_anonymous true
+          persistence false
+          EOF
+          
+          # Start mosquitto service
+          sudo systemctl start mosquitto
+          sudo systemctl enable mosquitto
+          
+          # Wait for service to be ready
           echo "Waiting for Mosquitto broker to start..."
           for i in {1..30}; do
             if nc -z 127.0.0.1 1883 2>/dev/null; then
@@ -68,9 +74,8 @@ jobs:
             sleep 2
           done
           
-          # Verify broker is running
-          docker ps | grep mosquitto
-          docker logs mosquitto
+          # Verify service status
+          sudo systemctl status mosquitto
       - name: Setup Dart SDK
         uses: dart-lang/setup-dart@v1
         with:
@@ -94,10 +99,8 @@ jobs:
             echo "✅ MQTT broker is accessible on port 1883"
           else
             echo "❌ MQTT broker is not accessible"
-            echo "Debug: Docker containers running:"
-            docker ps
-            echo "Debug: Mosquitto logs:"
-            docker logs mosquitto || true
+            echo "Debug: Mosquitto service status:"
+            sudo systemctl status mosquitto || true
             echo "Debug: Network connections:"
             netstat -tulpn | grep 1883 || true
             exit 1
