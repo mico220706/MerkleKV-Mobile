@@ -9,15 +9,24 @@ jobs:
         working-directory: packages/merkle_kv_core
     steps:
       - uses: actions/checkout@v4
-      - uses: dart-lang/setup-dart@v1
-        with:
-          sdk: stable
-      - name: Fix corrupted frontend server snapshot
+      - name: Install Dart SDK from archive (bypass corrupted hostedtoolcache)
         run: |
+          # Remove any existing Dart installations
+          sudo rm -rf /opt/hostedtoolcache/dart
           rm -rf ~/.dart
           rm -rf ~/.pub-cache
-          # Regenerate corrupted snapshots
-          dart --disable-dart-dev compile kernel --help > /dev/null || true
+          
+          # Download and install Dart SDK directly
+          wget -qO- https://storage.googleapis.com/dart-archive/channels/stable/release/latest/sdk/dartsdk-linux-x64-release.zip > dart-sdk.zip
+          unzip -q dart-sdk.zip
+          sudo mv dart-sdk /opt/dart
+          
+          # Add to PATH
+          echo "/opt/dart/bin" >> $GITHUB_PATH
+          export PATH="/opt/dart/bin:$PATH"
+          
+          # Verify installation
+          dart --version
       - run: dart pub get
       - run: dart analyze
       - name: Run unit tests
@@ -50,15 +59,24 @@ jobs:
             echo "Waiting for Mosquitto... ($i/30)"
             sleep 1
           done
-      - uses: dart-lang/setup-dart@v1
-        with:
-          sdk: stable
-      - name: Fix corrupted frontend server snapshot
+      - name: Install Dart SDK from archive (bypass corrupted hostedtoolcache)
         run: |
+          # Remove any existing Dart installations
+          sudo rm -rf /opt/hostedtoolcache/dart
           rm -rf ~/.dart
           rm -rf ~/.pub-cache
-          # Regenerate corrupted snapshots
-          dart --disable-dart-dev compile kernel --help > /dev/null || true
+          
+          # Download and install Dart SDK directly
+          wget -qO- https://storage.googleapis.com/dart-archive/channels/stable/release/latest/sdk/dartsdk-linux-x64-release.zip > dart-sdk.zip
+          unzip -q dart-sdk.zip
+          sudo mv dart-sdk /opt/dart
+          
+          # Add to PATH
+          echo "/opt/dart/bin" >> $GITHUB_PATH
+          export PATH="/opt/dart/bin:$PATH"
+          
+          # Verify installation
+          dart --version
       - run: dart pub get
       - name: Run integration tests
         run: |
