@@ -12,13 +12,17 @@ jobs:
       - uses: dart-lang/setup-dart@v1
         with:
           sdk: stable
-      - run: dart pub get
-      - name: Clean Dart cache
-        run: dart pub cache clean
-      - name: Warm up Dart compiler
+      - name: Reinstall Dart SDK to fix corruption
         run: |
-          dart compile kernel --help > /dev/null 2>&1 || true
-          dart compile exe --help > /dev/null 2>&1 || true
+          # Remove potentially corrupted Dart cache
+          rm -rf ~/.dart
+          rm -rf ~/.pub-cache
+          # Reinstall Dart
+          sudo apt-get update
+          sudo apt-get install -y dart
+          # Verify installation
+          dart --version
+      - run: dart pub get
       - run: dart analyze
       - name: Run unit tests
         run: dart test -x integration --reporter=expanded --timeout=30s
@@ -53,13 +57,17 @@ jobs:
       - uses: dart-lang/setup-dart@v1
         with:
           sdk: stable
-      - run: dart pub get
-      - name: Clean Dart cache
-        run: dart pub cache clean
-      - name: Warm up Dart compiler
+      - name: Reinstall Dart SDK to fix corruption
         run: |
-          dart compile kernel --help > /dev/null 2>&1 || true
-          dart compile exe --help > /dev/null 2>&1 || true
+          # Remove potentially corrupted Dart cache
+          rm -rf ~/.dart
+          rm -rf ~/.pub-cache
+          # Reinstall Dart
+          sudo apt-get update
+          sudo apt-get install -y dart
+          # Verify installation
+          dart --version
+      - run: dart pub get
       - name: Run integration tests
         run: |
           dart test test/replication/integration_test.dart --reporter=expanded --timeout=90s --chain-stack-traces
