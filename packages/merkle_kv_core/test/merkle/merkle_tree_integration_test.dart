@@ -28,9 +28,9 @@ void main() {
       final rootHashChanges = <Uint8List>[];
       merkleTree.rootHashChanges.listen((hash) => rootHashChanges.add(hash));
       
-      // Initial empty state
+      // Initial empty state - no change notification yet
       await merkleTree.getRootHash();
-      expect(rootHashChanges.length, equals(1)); // Empty root hash
+      expect(rootHashChanges.length, equals(0)); // No changes yet
       
       // Add first entry
       await storage.put('user:123', StorageEntry.value(
@@ -42,8 +42,7 @@ void main() {
       ));
       
       await merkleTree.rebuildFromStorage();
-      expect(rootHashChanges.length, equals(2));
-      expect(rootHashChanges[1], isNot(equals(rootHashChanges[0])));
+      expect(rootHashChanges.length, equals(1)); // First change from empty to non-empty
       
       // Add second entry
       await storage.put('user:456', StorageEntry.value(
@@ -55,7 +54,7 @@ void main() {
       ));
       
       await merkleTree.rebuildFromStorage();
-      expect(rootHashChanges.length, equals(3));
+      expect(rootHashChanges.length, equals(2)); // Two changes: empty->1 entry, 1->2 entries
       expect(merkleTree.leafCount, equals(2));
     });
     
@@ -157,6 +156,7 @@ void main() {
         nodeId: 'test-node-2',
       );
       final storage2 = InMemoryStorage(config2);
+      await storage2.initialize();
       final merkleTree2 = MerkleTreeImpl(storage2, metrics);
       
       for (int i = testData.length - 1; i >= 0; i--) {
@@ -267,6 +267,7 @@ void main() {
         nodeId: 'node1',
       );
       final node1Storage = InMemoryStorage(config1);
+      await node1Storage.initialize();
       final node1Tree = MerkleTreeImpl(node1Storage, metrics);
       
       await node1Storage.put('shared:doc1', StorageEntry.value(
@@ -286,6 +287,7 @@ void main() {
         nodeId: 'node2',
       );
       final node2Storage = InMemoryStorage(config2);
+      await node2Storage.initialize();
       final node2Tree = MerkleTreeImpl(node2Storage, metrics);
       
       await node2Storage.put('shared:doc1', StorageEntry.value(

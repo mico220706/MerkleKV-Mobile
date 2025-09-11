@@ -192,6 +192,7 @@ void main() {
           nodeId: 'perf-node-$run',
         );
         storage = InMemoryStorage(config);
+        await storage.initialize();
         merkleTree.dispose();
         merkleTree = MerkleTreeImpl(storage, metrics);
         
