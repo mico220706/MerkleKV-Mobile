@@ -384,6 +384,8 @@ class CommandProcessorImpl implements CommandProcessor {
 
       if (result == null) {
         // Would exceed size limit
+        final currentSize = StringOperations.getUtf8ByteSize(existingValue ?? '');
+        final valueSize = StringOperations.getUtf8ByteSize(value);
         return Response.payloadTooLarge(requestId);
       }
 

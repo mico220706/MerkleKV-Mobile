@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import '../utils/numeric_operations.dart';
+import '../utils/string_operations.dart';
 
 /// Represents a command to be sent to MerkleKV.
 ///
