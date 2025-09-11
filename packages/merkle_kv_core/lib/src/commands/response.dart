@@ -1,4 +1,5 @@
 import 'dart:convert';
+import '../models/key_value_result.dart';
 
 /// Error codes for MerkleKV responses per Locked Spec §3.2.
 class ErrorCode {
