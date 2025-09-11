@@ -69,12 +69,21 @@ class OperationManager {
         // Check timeout before executing
         _timeoutManager.checkTimeout(requestId, operationType);
         
-        // Execute the operation
-        final result = await operation();
+        // Create a timeout-aware future that races the operation against timeout
+        final timeout = _timeoutManager.getTimeoutForType(operationType);
+        final timeoutFuture = Future.delayed(timeout, () {
+          throw TimeoutException(requestId, _timeoutManager.getElapsedTime(requestId));
+        });
+        
+        // Race the operation against timeout
+        final result = await Future.any([
+          operation(),
+          timeoutFuture,
+        ]);
         
         // Operation succeeded, stop the timer
         _timeoutManager.stopOperation(requestId);
-        return result;
+        return result as T;
       } catch (e) {
         // Stop timing on error
         _timeoutManager.stopOperation(requestId);
