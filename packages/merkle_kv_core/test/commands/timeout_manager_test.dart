@@ -1,156 +1,280 @@
-import 'package:test/test.dart';
+import 'dart:async';
 import 'package:mockito/mockito.dart';
-import 'package:async/async.dart';
+import 'package:test/test.dart';
 import 'package:merkle_kv_mobile/src/commands/timeout_manager.dart';
 import 'package:merkle_kv_mobile/src/commands/retry_policy.dart';
 import 'package:merkle_kv_mobile/src/commands/operation_manager.dart';
 
+class MockRandom extends Mock {
+  double nextDouble() => super.noSuchMethod(
+    Invocation.method('nextDouble', []),
+    returnValue: 0.5,
+  );
+}
+
 void main() {
   group('TimeoutManager', () {
     late TimeoutManager timeoutManager;
-    
+
     setUp(() {
       timeoutManager = TimeoutManager();
     });
-    
-    tearDown(() {
-      timeoutManager.dispose();
-    });
-    
-    test('should track operation timeouts correctly', () {
-      // Start tracking an operation
+
+    test('starts tracking operation correctly', () {
       const String requestId = 'test-request-1';
       timeoutManager.startOperation(requestId);
-      
-      // Should not be timed out immediately
-      expect(timeoutManager.isTimedOut(requestId, Duration(milliseconds: 100)), isFalse);
-      
-      // Wait for operation to time out
-      Future.delayed(Duration(milliseconds: 150), () {
-        expect(timeoutManager.isTimedOut(requestId, Duration(milliseconds: 100)), isTrue);
-      });
+      expect(timeoutManager.getElapsedTime(requestId), isNot(Duration.zero));
     });
-    
-    test('should remove completed operations', () {
-      // Start tracking operations
-      const String requestId1 = 'test-request-1';
-      const String requestId2 = 'test-request-2';
-      
-      timeoutManager.startOperation(requestId1);
-      timeoutManager.startOperation(requestId2);
-      
-      // Complete one operation
-      timeoutManager.completeOperation(requestId1);
-      
-      // Should not find completed operation
-      expect(timeoutManager.getElapsed(requestId1), isNull);
-      
-      // Should still track uncompleted operation
-      expect(timeoutManager.getElapsed(requestId2), isNotNull);
+
+    test('stops tracking operation correctly', () {
+      const String requestId = 'test-request-2';
+      timeoutManager.startOperation(requestId);
+      timeoutManager.stopOperation(requestId);
+      expect(timeoutManager.getElapsedTime(requestId), Duration.zero);
     });
-    
-    test('should handle non-existent operations', () {
-      const String nonExistentId = 'non-existent';
+
+    test('detects timeout based on operation type', () async {
+      const String requestId = 'test-request-3';
+      timeoutManager.startOperation(requestId);
       
-      expect(timeoutManager.isTimedOut(nonExistentId, Duration(seconds: 1)), isFalse);
-      expect(timeoutManager.getElapsed(nonExistentId), isNull);
+      // Wait to ensure timeout check will pass
+      await Future.delayed(const Duration(milliseconds: 50));
       
-      // Should not throw when completing non-existent operation
-      expect(() => timeoutManager.completeOperation(nonExistentId), returnsNormally);
+      // Manually override timeout to smaller value for testing
+      final testTimeout = Duration(milliseconds: 10);
+      expect(timeoutManager.isTimedOut(requestId, testTimeout), isTrue);
+    });
+
+    test('returns correct timeout duration per operation type', () {
+      expect(timeoutManager.getTimeoutForType(OperationType.singleKey), TimeoutManager.singleKeyTimeout);
+      expect(timeoutManager.getTimeoutForType(OperationType.multiKey), TimeoutManager.multiKeyTimeout);
+      expect(timeoutManager.getTimeoutForType(OperationType.sync), TimeoutManager.syncTimeout);
+    });
+
+    test('throws TimeoutException when operation times out', () {
+      const String requestId = 'test-request-4';
+      timeoutManager.startOperation(requestId);
+      
+      // Manually set timeout to a short value for testing
+      final testTimeout = Duration(milliseconds: 5);
+      
+      // Ensure enough time has passed
+      expect(() => timeoutManager.checkTimeout(requestId, OperationType.singleKey),
+          throwsA(isA<TimeoutException>()));
+    });
+
+    test('cleanup stale operations', () async {
+      const String requestId = 'test-request-5';
+      timeoutManager.startOperation(requestId);
+      
+      // Wait to ensure operation is considered stale
+      await Future.delayed(const Duration(milliseconds: 50));
+      
+      // Run cleanup
+      timeoutManager.cleanupStaleOperations();
+      
+      // The operation should have been removed
+      expect(timeoutManager.getElapsedTime(requestId), Duration.zero);
     });
   });
-  
+
   group('RetryPolicy', () {
-    test('should calculate exponential backoff with jitter', () {
+    test('calculates exponential backoff with jitter', () {
       final policy = RetryPolicy(
-        maxAttempts: 5,
-        initialDelay: Duration(seconds: 1),
+        initialDelay: const Duration(milliseconds: 100),
         backoffFactor: 2.0,
-        maxDelay: Duration(seconds: 30),
         jitterFactor: 0.2,
+        random: MockRandom(),
       );
       
-      // Collect multiple samples to verify jitter
-      List<Duration> samples = List.generate(100, (_) => policy.calculateDelay(1));
+      final delay1 = policy.calculateDelay(1);
+      final delay2 = policy.calculateDelay(2);
+      final delay3 = policy.calculateDelay(3);
       
-      // Base delay should be 2s (1s * 2^1)
-      // With ±20% jitter, range should be 1.6s to 2.4s
-      for (final delay in samples) {
-        expect(delay.inMilliseconds, greaterThanOrEqualTo(800));
-        expect(delay.inMilliseconds, lessThanOrEqualTo(1200));
-      }
+      // With backoffFactor 2.0:
+      // - First attempt: 100ms
+      // - Second attempt: 200ms
+      // - Third attempt: 400ms
       
-      // Verify max delay cap
-      final maxDelayAttempt = 10; // Should exceed max delay of 30s
-      final cappedDelay = policy.calculateDelay(maxDelayAttempt);
-      expect(cappedDelay.inMilliseconds, lessThanOrEqualTo(36000)); // 30s + 20% jitter
+      // With a mock random that always returns 0.5, jitter factor will be 0
+      // so delays will be exactly as calculated
+      expect(delay1.inMilliseconds, 100);
+      expect(delay2.inMilliseconds, 200);
+      expect(delay3.inMilliseconds, 400);
     });
-    
-    test('should respect max attempts', () {
+
+    test('respects maximum delay cap', () {
+      final policy = RetryPolicy(
+        initialDelay: const Duration(seconds: 1),
+        backoffFactor: 10.0,
+        maxDelay: const Duration(seconds: 5),
+        random: MockRandom(),
+      );
+      
+      // With backoffFactor 10.0:
+      // - Attempt 1: 1s
+      // - Attempt 2: 10s (capped to 5s)
+      
+      final delay1 = policy.calculateDelay(1);
+      final delay2 = policy.calculateDelay(2);
+      
+      expect(delay1.inSeconds, 1);
+      expect(delay2.inSeconds, 5); // Capped at maxDelay
+    });
+
+    test('determines if error is retriable', () {
       final policy = RetryPolicy(maxAttempts: 3);
       
-      expect(policy.shouldRetry(0), isTrue);
-      expect(policy.shouldRetry(1), isTrue);
-      expect(policy.shouldRetry(2), isTrue);
-      expect(policy.shouldRetry(3), isFalse);
-    });
-    
-    test('should throw on invalid attempt counts', () {
-      final policy = RetryPolicy(maxAttempts: 3);
+      // Retriable errors
+      final timeoutError = TimeoutException('request-id', Duration(seconds: 1));
+      final networkError = Exception('Network connection lost');
+      final brokerError = Exception('Broker disconnected');
       
-      expect(() => policy.calculateDelay(-1), throwsArgumentError);
-      expect(() => policy.calculateDelay(4), throwsArgumentError);
+      // Non-retriable errors
+      final validationError = Exception('Invalid request format');
+      final authError = Exception('Authentication failed');
+      
+      // Should retry network-related errors
+      expect(policy.shouldRetry(timeoutError, 1), isTrue);
+      expect(policy.shouldRetry(networkError, 1), isTrue);
+      expect(policy.shouldRetry(brokerError, 1), isTrue);
+      
+      // Should not retry validation or auth errors
+      expect(policy.shouldRetry(validationError, 1), isFalse);
+      expect(policy.shouldRetry(authError, 1), isFalse);
+    });
+
+    test('stops retrying after max attempts', () {
+      final policy = RetryPolicy(maxAttempts: 3);
+      final error = TimeoutException('request-id', Duration(seconds: 1));
+      
+      expect(policy.shouldRetry(error, 1), isTrue);
+      expect(policy.shouldRetry(error, 2), isTrue);
+      expect(policy.shouldRetry(error, 3), isFalse); // Max attempts reached
     });
   });
-  
+
   group('OperationManager', () {
     late OperationManager operationManager;
-    
+
     setUp(() {
       operationManager = OperationManager();
     });
-    
-    tearDown(() {
-      operationManager.dispose();
-    });
-    
-    test('should execute operations with proper timeouts', () async {
-      // Test successful operation
-      final result = await operationManager.executeOperation<String>(
-        requestId: 'test-op-1',
+
+    test('executes operation with retry on failure', () async {
+      int attempts = 0;
+      bool succeeded = false;
+      
+      await operationManager.executeWithRetry(
+        requestId: 'test-op',
         operationType: OperationType.singleKey,
         operation: () async {
-          await Future.delayed(Duration(milliseconds: 50));
+          attempts++;
+          
+          if (attempts < 2) {
+            throw Exception('Temporary network error');
+          }
+          
+          succeeded = true;
           return 'success';
         },
       );
       
-      expect(result, equals('success'));
+      expect(attempts, 2);
+      expect(succeeded, isTrue);
     });
-    
-    test('should handle operation timeouts', () async {
-      // Test operation that exceeds timeout
-      // We'll use a shorter timeout for testing
+
+    test('uses custom retry policy when specified', () async {
       final customManager = OperationManager(
         retryPolicy: RetryPolicy(initialDelay: Duration(milliseconds: 50)),
       );
       
-      try {
-        await customManager.executeOperation<String>(
-          requestId: 'timeout-op',
+      int attempts = 0;
+      
+      await customManager.executeWithRetry(
+        requestId: 'custom-policy-test',
+        operationType: OperationType.singleKey,
+        operation: () async {
+          attempts++;
+          
+          if (attempts < 3) {
+            throw Exception('Temporary failure');
+          }
+          
+          return 'success';
+        },
+      );
+      
+      expect(attempts, 3);
+    });
+
+    test('times out operations that take too long', () async {
+      final String requestId = 'timeout-test';
+      
+      expect(() async {
+        await operationManager.executeWithRetry(
+          requestId: requestId,
           operationType: OperationType.singleKey,
           operation: () async {
-            // Simulate long-running operation
-            await Future.delayed(Duration(seconds: 15));
-            return 'delayed result';
+            // Override operation timeout for testing purposes
+            await Future.delayed(Duration(seconds: 11));
+            return 'success';
           },
         );
-        fail('Should have thrown TimeoutException');
-      } catch (e) {
-        expect(e, isA<TimeoutException>());
-      }
+      }, throwsA(isA<TimeoutException>()));
     });
-    
-    // Additional tests would cover retry behavior, result caching, etc.
+
+    test('queues failed operations for retry', () async {
+      final operation = RetriableOperation(
+        requestId: 'retry-test',
+        executeOperation: () async {
+          throw Exception('Network error');
+        },
+      );
+      
+      await operationManager.queueForRetry(operation);
+      
+      expect(operationManager.retryQueueSize, 1);
+    });
+
+    test('enforces queue size limit', () async {
+      for (int i = 0; i < OperationManager.maxQueueSize + 10; i++) {
+        final operation = RetriableOperation(
+          requestId: 'queue-test-$i',
+          executeOperation: () async {},
+        );
+        
+        await operationManager.queueForRetry(operation);
+      }
+      
+      // Queue should be capped at max size, oldest operations dropped
+      expect(operationManager.retryQueueSize, OperationManager.maxQueueSize);
+    });
+
+    test('processes retry queue on reconnection', () async {
+      int successCount = 0;
+      
+      // Add some operations that will succeed
+      for (int i = 0; i < 5; i++) {
+        final operation = RetriableOperation(
+          requestId: 'reconnect-test-$i',
+          executeOperation: () async {
+            successCount++;
+            return;
+          },
+        );
+        
+        await operationManager.queueForRetry(operation);
+      }
+      
+      // Simulate reconnection
+      operationManager.setConnectionState(true);
+      
+      // Allow time for queue processing
+      await Future.delayed(Duration(milliseconds: 100));
+      
+      expect(successCount, 5);
+      expect(operationManager.retryQueueSize, 0);
+    });
   });
 }

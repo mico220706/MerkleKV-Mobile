@@ -1,55 +1,107 @@
 import 'dart:async';
 
-/// Manages operation timeouts according to Locked Spec §11
+/// Enumeration for different operation types with corresponding timeouts
+enum OperationType {
+  /// Single key operations: 10 seconds
+  singleKey,
+  
+  /// Multi-key operations: 20 seconds
+  multiKey,
+  
+  /// Synchronization operations: 30 seconds
+  sync
+}
+
+/// Exception thrown when an operation times out
+class TimeoutException implements Exception {
+  final String message;
+  final String requestId;
+  final Duration elapsed;
+
+  TimeoutException(this.requestId, this.elapsed, {String? customMessage})
+      : message = customMessage ?? 'Operation $requestId timed out after ${elapsed.inMilliseconds}ms';
+
+  @override
+  String toString() => 'TimeoutException: $message';
+}
+
+/// Manages operation timeouts using monotonic timers
+/// 
+/// Implements Locked Spec §11 timeout requirements:
+/// - 10s for single-key operations
+/// - 20s for multi-key operations  
+/// - 30s for synchronization operations
 class TimeoutManager {
-  /// Timeout for single-key operations (10 seconds)
+  /// Default timeout for single-key operations per Locked Spec §11
   static const Duration singleKeyTimeout = Duration(seconds: 10);
   
-  /// Timeout for multi-key operations (20 seconds)
+  /// Default timeout for multi-key operations per Locked Spec §11
   static const Duration multiKeyTimeout = Duration(seconds: 20);
   
-  /// Timeout for sync operations (30 seconds)
+  /// Default timeout for sync operations per Locked Spec §11
   static const Duration syncTimeout = Duration(seconds: 30);
-
-  /// Map to track active operations with their start times
+  
+  /// Map of active operations with their start times
   final Map<String, Stopwatch> _activeOperations = {};
   
-  /// Starts tracking a new operation
-  /// 
-  /// [requestId] - Unique identifier for the operation
+  /// Gets timeout duration for a specific operation type
+  Duration getTimeoutForType(OperationType type) {
+    switch (type) {
+      case OperationType.singleKey:
+        return singleKeyTimeout;
+      case OperationType.multiKey:
+        return multiKeyTimeout;
+      case OperationType.sync:
+        return syncTimeout;
+    }
+  }
+  
+  /// Starts tracking an operation with a monotonic timer
   void startOperation(String requestId) {
     final stopwatch = Stopwatch()..start();
     _activeOperations[requestId] = stopwatch;
   }
-
+  
   /// Stops tracking an operation
-  /// 
-  /// [requestId] - Unique identifier for the operation
-  void completeOperation(String requestId) {
-    _activeOperations.remove(requestId);
+  void stopOperation(String requestId) {
+    _activeOperations.remove(requestId)?.stop();
   }
   
   /// Checks if an operation has timed out
-  /// 
-  /// [requestId] - Unique identifier for the operation
-  /// [timeout] - Timeout duration for this operation type
-  /// Returns true if operation has exceeded its timeout
   bool isTimedOut(String requestId, Duration timeout) {
     final stopwatch = _activeOperations[requestId];
     return stopwatch != null && stopwatch.elapsed > timeout;
   }
   
-  /// Get elapsed time for an operation
-  /// 
-  /// [requestId] - Unique identifier for the operation
-  /// Returns elapsed duration or null if operation not found
-  Duration? getElapsed(String requestId) {
+  /// Gets the elapsed time for a specific operation
+  Duration getElapsedTime(String requestId) {
     final stopwatch = _activeOperations[requestId];
-    return stopwatch?.elapsed;
+    return stopwatch?.elapsed ?? Duration.zero;
   }
   
-  /// Cleans up any lingering operations
-  void dispose() {
-    _activeOperations.clear();
+  /// Checks and throws if an operation has timed out
+  void checkTimeout(String requestId, OperationType operationType) {
+    final timeout = getTimeoutForType(operationType);
+    if (isTimedOut(requestId, timeout)) {
+      final elapsed = getElapsedTime(requestId);
+      stopOperation(requestId);
+      throw TimeoutException(requestId, elapsed);
+    }
+  }
+  
+  /// Cleans up any stale operations (useful for periodic maintenance)
+  void cleanupStaleOperations() {
+    final staleOperations = <String>[];
+    
+    _activeOperations.forEach((requestId, stopwatch) {
+      // Consider any operation over 30s (max timeout) as stale
+      if (stopwatch.elapsed > syncTimeout) {
+        staleOperations.add(requestId);
+      }
+    });
+    
+    for (final requestId in staleOperations) {
+      stopOperation(requestId);
+    }
   }
 }
