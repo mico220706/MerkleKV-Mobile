@@ -5,9 +5,9 @@ import 'package:merkle_kv_core/src/commands/timeout_manager.dart';
 import 'package:merkle_kv_core/src/commands/retry_policy.dart';
 import 'package:merkle_kv_core/src/commands/operation_manager.dart';
 
-class MockRandom extends Mock {
+class MockRandom extends Mock implements Random {
   double nextDouble() => super.noSuchMethod(
-    Invocation.method('nextDouble', []),
+    Invocation.method(#nextDouble, []),
     returnValue: 0.5,
   );
 }

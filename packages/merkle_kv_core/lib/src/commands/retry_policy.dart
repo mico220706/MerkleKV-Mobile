@@ -1,4 +1,5 @@
 import 'dart:math';
+import 'dart:async';
 
 /// Policy for retrying failed operations
 ///
@@ -44,10 +45,10 @@ class RetryPolicy {
     }
     
     // Apply exponential backoff
-    final double delayMillis = initialDelay.inMilliseconds * pow(backoffFactor, attempt - 1);
+    final double delayMillis = initialDelay.inMilliseconds * pow(backoffFactor, attempt - 1).toDouble();
     
     // Apply maximum delay cap
-    final double cappedDelayMillis = min(delayMillis, maxDelay.inMilliseconds);
+    final double cappedDelayMillis = min(delayMillis, maxDelay.inMilliseconds.toDouble());
     
     // Apply jitter: random value between -jitterFactor and +jitterFactor
     final double jitter = (_random.nextDouble() - 0.5) * 2 * jitterFactor;
