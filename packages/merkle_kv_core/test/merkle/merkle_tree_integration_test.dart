@@ -326,7 +326,7 @@ void main() {
       
       // Verify both nodes have all data
       expect(node1Tree.leafCount, equals(node2Tree.leafCount));
-      expect(node1Tree.leafCount, equals(2)); // Both shared and private entries
+      expect(node1Tree.leafCount, equals(3)); // shared:doc1, node1:private, node2:private
       
       node1Tree.dispose();
       node2Tree.dispose();
