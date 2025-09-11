@@ -63,29 +63,6 @@ abstract class ReplicationMetrics {
   
   /// Increment the total number of timestamp anomalies detected (same timestamp + nodeId, different content)
   void incrementLWWAnomalies() {}
-
-  // Merkle tree metrics (for issue #16)
-  
-  /// Set the current Merkle tree depth
-  void setMerkleTreeDepth(int depth) {}
-  
-  /// Set the current number of leaf nodes in the Merkle tree
-  void setMerkleTreeLeafCount(int count) {}
-  
-  /// Increment the total number of root hash changes
-  void incrementMerkleRootHashChanges() {}
-  
-  /// Record Merkle tree build duration in microseconds (minimum 1µs)
-  void recordMerkleTreeBuildDuration(int microseconds) {}
-  
-  /// Record Merkle tree update duration in microseconds
-  void recordMerkleTreeUpdateDuration(int microseconds) {}
-  
-  /// Increment the total number of hash computations performed
-  void incrementMerkleHashComputations() {}
-  
-  /// Increment the total number of hash cache hits
-  void incrementMerkleHashCacheHits() {}
 }
 
 /// No-op implementation for when metrics are disabled
@@ -150,28 +127,6 @@ class NoOpReplicationMetrics implements ReplicationMetrics {
 
   @override
   void incrementLWWAnomalies() {}
-
-  // Merkle tree metrics
-  @override
-  void setMerkleTreeDepth(int depth) {}
-
-  @override
-  void setMerkleTreeLeafCount(int count) {}
-
-  @override
-  void incrementMerkleRootHashChanges() {}
-
-  @override
-  void recordMerkleTreeBuildDuration(int microseconds) {}
-
-  @override
-  void recordMerkleTreeUpdateDuration(int microseconds) {}
-
-  @override
-  void incrementMerkleHashComputations() {}
-
-  @override
-  void incrementMerkleHashCacheHits() {}
 }
 
 /// Simple in-memory metrics implementation for testing/debugging
@@ -192,16 +147,9 @@ class InMemoryReplicationMetrics implements ReplicationMetrics {
   int _lwwDuplicates = 0;
   int _lwwTimestampClamps = 0;
   int _lwwAnomalies = 0;
-  int _merkleTreeDepth = 0;
-  int _merkleTreeLeafCount = 0;
-  int _merkleRootHashChanges = 0;
-  int _merkleHashComputations = 0;
-  int _merkleHashCacheHits = 0;
   final List<int> _publishLatencies = <int>[];
   final List<int> _flushDurations = <int>[];
   final List<int> _applicationLatencies = <int>[];
-  final List<int> _merkleTreeBuildDurations = <int>[];
-  final List<int> _merkleTreeUpdateDurations = <int>[];
 
   // Getters
   int get eventsPublished => _eventsPublished;
@@ -220,16 +168,9 @@ class InMemoryReplicationMetrics implements ReplicationMetrics {
   int get lwwDuplicates => _lwwDuplicates;
   int get lwwTimestampClamps => _lwwTimestampClamps;
   int get lwwAnomalies => _lwwAnomalies;
-  int get merkleTreeDepth => _merkleTreeDepth;
-  int get merkleTreeLeafCount => _merkleTreeLeafCount;
-  int get merkleRootHashChanges => _merkleRootHashChanges;
-  int get merkleHashComputations => _merkleHashComputations;
-  int get merkleHashCacheHits => _merkleHashCacheHits;
   List<int> get publishLatencies => List.unmodifiable(_publishLatencies);
   List<int> get flushDurations => List.unmodifiable(_flushDurations);
   List<int> get applicationLatencies => List.unmodifiable(_applicationLatencies);
-  List<int> get merkleTreeBuildDurations => List.unmodifiable(_merkleTreeBuildDurations);
-  List<int> get merkleTreeUpdateDurations => List.unmodifiable(_merkleTreeUpdateDurations);
 
   @override
   void incrementEventsPublished() {
@@ -328,44 +269,6 @@ class InMemoryReplicationMetrics implements ReplicationMetrics {
     _lwwAnomalies++;
   }
 
-  // Merkle tree metrics
-  @override
-  void setMerkleTreeDepth(int depth) {
-    _merkleTreeDepth = depth;
-  }
-
-  @override
-  void setMerkleTreeLeafCount(int count) {
-    _merkleTreeLeafCount = count;
-  }
-
-  @override
-  void incrementMerkleRootHashChanges() {
-    _merkleRootHashChanges++;
-  }
-
-  @override
-  void recordMerkleTreeBuildDuration(int microseconds) {
-    // Clamp to minimum 1µs as per specification
-    final clampedDuration = microseconds < 1 ? 1 : microseconds;
-    _merkleTreeBuildDurations.add(clampedDuration);
-  }
-
-  @override
-  void recordMerkleTreeUpdateDuration(int microseconds) {
-    _merkleTreeUpdateDurations.add(microseconds);
-  }
-
-  @override
-  void incrementMerkleHashComputations() {
-    _merkleHashComputations++;
-  }
-
-  @override
-  void incrementMerkleHashCacheHits() {
-    _merkleHashCacheHits++;
-  }
-
   /// Reset all metrics (useful for testing)
   void reset() {
     _eventsPublished = 0;
@@ -384,16 +287,9 @@ class InMemoryReplicationMetrics implements ReplicationMetrics {
     _lwwDuplicates = 0;
     _lwwTimestampClamps = 0;
     _lwwAnomalies = 0;
-    _merkleTreeDepth = 0;
-    _merkleTreeLeafCount = 0;
-    _merkleRootHashChanges = 0;
-    _merkleHashComputations = 0;
-    _merkleHashCacheHits = 0;
     _publishLatencies.clear();
     _flushDurations.clear();
     _applicationLatencies.clear();
-    _merkleTreeBuildDurations.clear();
-    _merkleTreeUpdateDurations.clear();
   }
 
   @override
@@ -405,14 +301,6 @@ class InMemoryReplicationMetrics implements ReplicationMetrics {
     final avgApplicationLatency = _applicationLatencies.isEmpty 
         ? 0 
         : _applicationLatencies.reduce((a, b) => a + b) / _applicationLatencies.length;
-    
-    final avgMerkleBuildDuration = _merkleTreeBuildDurations.isEmpty 
-        ? 0 
-        : _merkleTreeBuildDurations.reduce((a, b) => a + b) / _merkleTreeBuildDurations.length;
-    
-    final avgMerkleUpdateDuration = _merkleTreeUpdateDurations.isEmpty 
-        ? 0 
-        : _merkleTreeUpdateDurations.reduce((a, b) => a + b) / _merkleTreeUpdateDurations.length;
     
     return 'InMemoryReplicationMetrics('
         'eventsPublished: $_eventsPublished, '
@@ -431,15 +319,8 @@ class InMemoryReplicationMetrics implements ReplicationMetrics {
         'lwwDuplicates: $_lwwDuplicates, '
         'lwwTimestampClamps: $_lwwTimestampClamps, '
         'lwwAnomalies: $_lwwAnomalies, '
-        'merkleTreeDepth: $_merkleTreeDepth, '
-        'merkleTreeLeafCount: $_merkleTreeLeafCount, '
-        'merkleRootHashChanges: $_merkleRootHashChanges, '
-        'merkleHashComputations: $_merkleHashComputations, '
-        'merkleHashCacheHits: $_merkleHashCacheHits, '
         'avgPublishLatency: ${avgPublishLatency.toStringAsFixed(1)}ms, '
-        'avgApplicationLatency: ${avgApplicationLatency.toStringAsFixed(1)}ms, '
-        'avgMerkleBuildDuration: ${avgMerkleBuildDuration.toStringAsFixed(1)}µs, '
-        'avgMerkleUpdateDuration: ${avgMerkleUpdateDuration.toStringAsFixed(1)}µs'
+        'avgApplicationLatency: ${avgApplicationLatency.toStringAsFixed(1)}ms'
         ')';
   }
 }
