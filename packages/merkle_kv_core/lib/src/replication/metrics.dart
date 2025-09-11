@@ -6,7 +6,11 @@ abstract class ReplicationMetrics {
   /// Increment the total number of events published
   void incrementEventsPublished();
 
-  /// Increment the total number of publish errors
+  /// Increment t        'lwwTimestampClamps: $_lwwTimestampClamps, '
+        'lwwAnomalies: $_lwwAnomalies, '
+        'avgPublishLatency: ${avgPublishLatency.toStringAsFixed(1)}ms, '
+        'avgApplicationLatency: ${avgApplicationLatency.toStringAsFixed(1)}ms'
+        ')');otal number of publish errors
   void incrementPublishErrors();
 
   /// Set the current outbox size
@@ -60,6 +64,9 @@ abstract class ReplicationMetrics {
   
   /// Increment the total number of timestamps clamped due to clock skew
   void incrementLWWTimestampClamps() {}
+  
+  /// Increment the total number of timestamp anomalies detected (same timestamp + nodeId, different content)
+  void incrementLWWAnomalies() {}
 }
 
 /// No-op implementation for when metrics are disabled
@@ -119,6 +126,9 @@ class NoOpReplicationMetrics implements ReplicationMetrics {
 
   @override
   void incrementLWWTimestampClamps() {}
+
+  @override
+  void incrementLWWAnomalies() {}
 }
 
 /// Simple in-memory metrics implementation for testing/debugging
@@ -138,6 +148,7 @@ class InMemoryReplicationMetrics implements ReplicationMetrics {
   int _lwwRemoteWins = 0;
   int _lwwDuplicates = 0;
   int _lwwTimestampClamps = 0;
+  int _lwwAnomalies = 0;
   final List<int> _publishLatencies = <int>[];
   final List<int> _flushDurations = <int>[];
   final List<int> _applicationLatencies = <int>[];
@@ -157,6 +168,7 @@ class InMemoryReplicationMetrics implements ReplicationMetrics {
   int get lwwRemoteWins => _lwwRemoteWins;
   int get lwwDuplicates => _lwwDuplicates;
   int get lwwTimestampClamps => _lwwTimestampClamps;
+  int get lwwAnomalies => _lwwAnomalies;
   List<int> get publishLatencies => List.unmodifiable(_publishLatencies);
   List<int> get flushDurations => List.unmodifiable(_flushDurations);
   List<int> get applicationLatencies => List.unmodifiable(_applicationLatencies);
@@ -251,6 +263,11 @@ class InMemoryReplicationMetrics implements ReplicationMetrics {
     _lwwTimestampClamps++;
   }
 
+  @override
+  void incrementLWWAnomalies() {
+    _lwwAnomalies++;
+  }
+
   /// Reset all metrics (useful for testing)
   void reset() {
     _eventsPublished = 0;
@@ -268,6 +285,7 @@ class InMemoryReplicationMetrics implements ReplicationMetrics {
     _lwwRemoteWins = 0;
     _lwwDuplicates = 0;
     _lwwTimestampClamps = 0;
+    _lwwAnomalies = 0;
     _publishLatencies.clear();
     _flushDurations.clear();
     _applicationLatencies.clear();

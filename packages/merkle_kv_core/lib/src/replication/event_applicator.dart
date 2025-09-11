@@ -582,6 +582,27 @@ class ReplicationEventApplicatorImpl implements ReplicationEventApplicator {
       );
     }
     
+    // Check for timestamp anomaly BEFORE LWW comparison
+    // Same timestamp + same nodeId but different content = anomaly
+    if (eventEntry.timestampMs == existing.timestampMs && 
+        eventEntry.nodeId == existing.nodeId) {
+      // Check if content is actually different
+      final bool contentSame;
+      if (eventEntry.isTombstone && existing.isTombstone) {
+        contentSame = true; // Both tombstones
+      } else if (eventEntry.isTombstone != existing.isTombstone) {
+        contentSame = false; // One tombstone, one value
+      } else {
+        contentSame = eventEntry.value == existing.value; // Compare values
+      }
+      
+      if (!contentSame) {
+        // Same timestamp and nodeId but different content - this is an anomaly
+        _metrics.incrementLWWAnomalies();
+        return _LWWResult.anomaly;
+      }
+    }
+    
     // Use LWW resolver to compare entries
     final comparison = _lwwResolver.compare(eventEntry, existing);
     
