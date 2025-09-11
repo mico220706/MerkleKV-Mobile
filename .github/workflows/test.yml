@@ -10,9 +10,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dart-lang/setup-dart@v1
+        with:
+          sdk: stable
       - run: dart pub get
       - run: dart analyze
-      - run: dart test -x integration --reporter=expanded --timeout=30s
+      - name: Run unit tests
+        run: dart test -x integration --reporter=expanded --timeout=30s
 
   integration:
     runs-on: ubuntu-latest
@@ -32,6 +35,18 @@ jobs:
             -p 1883:1883 \
             -v ${{ github.workspace }}/.ci/mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf \
             eclipse-mosquitto:2
+          # Wait for Mosquitto to be ready
+          for i in {1..30}; do
+            if nc -z 127.0.0.1 1883; then
+              echo "Mosquitto is ready"
+              break
+            fi
+            echo "Waiting for Mosquitto... ($i/30)"
+            sleep 1
+          done
       - uses: dart-lang/setup-dart@v1
+        with:
+          sdk: stable
       - run: dart pub get
-      - run: dart test -t integration --timeout=90s --chain-stack-traces
+      - name: Run integration tests
+        run: dart test -t integration --reporter=expanded --timeout=90s --chain-stack-traces
