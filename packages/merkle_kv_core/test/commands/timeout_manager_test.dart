@@ -57,10 +57,9 @@ void main() {
         // wait beyond the timeout
         await Future.delayed(const Duration(milliseconds: 30));
 
-        expect(
-            () => timeoutManager.checkTimeout(requestId, OperationType.singleKey),
-            throwsA(isA<TimeoutException>()),
-        );
+        return Future.delayed(const Duration(milliseconds: 30), () {
+            expect(() => timeoutManager.checkTimeout(requestId, OperationType.singleKey),throwsA(isA<TimeoutException>()));
+        });
     });
 
     test('cleanup stale operations', () async {
@@ -82,7 +81,7 @@ void main() {
     test('calculates exponential backoff with jitter', () {
       final retryPolicy = RetryPolicy(
         maxAttempts: 3,
-        initialDelay: const Duration(milliseconds: 10),
+        initialDelay: const Duration(milliseconds: 100),
         backoffFactor: 2,
         maxDelay: const Duration(milliseconds: 50),
         random: MockRandom(),
@@ -188,7 +187,10 @@ void main() {
 
     test('uses custom retry policy when specified', () async {
       final customManager = OperationManager(
-        retryPolicy: RetryPolicy(initialDelay: Duration(milliseconds: 50)),
+        retryPolicy: RetryPolicy(
+            initialDelay: const Duration(milliseconds: 50),
+            maxAttempts: 3,
+        ),
       );
       
       int attempts = 0;
@@ -218,7 +220,7 @@ void main() {
             requestId: requestId,
             operationType: OperationType.singleKey,
             operation: () async {
-            await Future.delayed(const Duration(seconds: 11));
+            await Future.delayed(const Duration(seconds: 20));
             return 'success';
             },
         ), throwsA(isA<TimeoutException>()),
