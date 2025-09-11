@@ -1,9 +1,9 @@
 import 'dart:async';
 import 'package:mockito/mockito.dart';
 import 'package:test/test.dart';
-import 'package:merkle_kv_mobile/src/commands/timeout_manager.dart';
-import 'package:merkle_kv_mobile/src/commands/retry_policy.dart';
-import 'package:merkle_kv_mobile/src/commands/operation_manager.dart';
+import 'package:merkle_kv_core/src/commands/timeout_manager.dart';
+import 'package:merkle_kv_core/src/commands/retry_policy.dart';
+import 'package:merkle_kv_core/src/commands/operation_manager.dart';
 
 class MockRandom extends Mock {
   double nextDouble() => super.noSuchMethod(
