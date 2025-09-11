@@ -51,58 +51,52 @@ class OperationManager {
     _timeoutManager.stopOperation(requestId);
   }
   
-  /// Executes an operation with timeout monitoring and retry logic
-  Future<T> executeWithRetry<T>({
-    required String requestId,
-    required OperationType operationType,
-    required Future<T> Function() operation,
-    RetryPolicy? customRetryPolicy,
-  }) async {
-    final retryPolicy = customRetryPolicy ?? _retryPolicy;
-    int attempts = 0;
-    
-    while (true) {
-      attempts++;
-      _timeoutManager.startOperation(requestId);
-      
-      try {
-        // Check timeout before executing
-        _timeoutManager.checkTimeout(requestId, operationType);
+    /// Executes an operation with timeout monitoring and retry logic
+    Future<T> executeWithRetry<T>({
+        required String requestId,
+        required OperationType operationType,
+        required Future<T> Function() operation,
+        RetryPolicy? customRetryPolicy,
+        }) async {
+        final retryPolicy = customRetryPolicy ?? _retryPolicy;
+        int attempts = 0;
         
-        // Create a timeout-aware future that races the operation against timeout
-        final timeout = _timeoutManager.getTimeoutForType(operationType);
-        final timeoutFuture = Future.delayed(timeout, () {
-          throw TimeoutException(requestId, _timeoutManager.getElapsedTime(requestId));
-        });
-        
-        // Race the operation against timeout
-        final result = await Future.any([
-          operation(),
-          timeoutFuture,
-        ]);
-        
-        // Operation succeeded, stop the timer
-        _timeoutManager.stopOperation(requestId);
-        return result as T;
-      } catch (e) {
-        // Stop timing on error
-        _timeoutManager.stopOperation(requestId);
-        
-        // Determine if we should retry
-        if (e is Exception && retryPolicy.shouldRetry(e, attempts)) {
-          // Calculate delay for this attempt
-          final delay = retryPolicy.calculateDelay(attempts);
-          
-          // Wait before retrying
-          await Future.delayed(delay);
-          continue;
+        while (true) {
+            attempts++;
+            _timeoutManager.startOperation(requestId);
+            
+            try {
+            // Check timeout before executing
+            _timeoutManager.checkTimeout(requestId, operationType);
+            
+            // Execute the operation with timeout
+            final timeout = _timeoutManager.getTimeoutForType(operationType);
+            final result = await operation().timeout(timeout, onTimeout: () {
+                throw TimeoutException(requestId, _timeoutManager.getElapsedTime(requestId));
+            });
+            
+            // Operation succeeded, stop the timer
+            _timeoutManager.stopOperation(requestId);
+            return result;
+            } catch (e) {
+            // Stop timing on error
+            _timeoutManager.stopOperation(requestId);
+            
+            // Determine if we should retry
+            if (e is Exception && retryPolicy.shouldRetry(e, attempts)) {
+                // Calculate delay for this attempt
+                final delay = retryPolicy.calculateDelay(attempts);
+                
+                // Wait before retrying
+                await Future.delayed(delay);
+                continue;
+            }
+            
+            // Either not retriable or max attempts reached
+            rethrow;
+            }
         }
-        
-        // Either not retriable or max attempts reached
-        rethrow;
-      }
     }
-  }
   
   /// Queues a failed operation for retry when reconnected
   Future<void> queueForRetry(RetriableOperation operation) async {

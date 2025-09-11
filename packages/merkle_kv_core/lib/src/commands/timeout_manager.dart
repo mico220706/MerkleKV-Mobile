@@ -89,21 +89,21 @@ class TimeoutManager {
     }
   }
   
-    /// Cleans up any stale operations (useful for periodic maintenance)
-    void cleanupStaleOperations() {
-        final staleOperations = <String>[];
-        
-        _activeOperations.forEach((requestId, stopwatch) {
-            // For testing purposes, consider operations over 30ms as stale
-            // In production, you might want to use syncTimeout
-            if (stopwatch.elapsed > const Duration(milliseconds: 30)) {
-            staleOperations.add(requestId);
-            }
-        });
-        
-        // Actually remove the stale operations
-        for (final requestId in staleOperations) {
-            _activeOperations.remove(requestId)?.stop();
-        }
+  /// Cleans up any stale operations (useful for periodic maintenance)
+  void cleanupStaleOperations() {
+    final staleOperations = <String>[];
+    
+    _activeOperations.forEach((requestId, stopwatch) {
+      // For testing purposes, consider operations over 30ms as stale
+      // In production, you might want to use syncTimeout
+      if (stopwatch.elapsed > const Duration(milliseconds: 30)) {
+        staleOperations.add(requestId);
+      }
+    });
+    
+    // Actually remove the stale operations
+    for (final requestId in staleOperations) {
+      _activeOperations.remove(requestId)?.stop();
     }
+  }
 }
