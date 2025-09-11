@@ -3,6 +3,7 @@ build/
 .dart_tool/
 .packages
 .pub/
+pubspec.lock
 
 # Flutter specific
 .flutter-plugins

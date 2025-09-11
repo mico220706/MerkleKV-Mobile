@@ -3,6 +3,14 @@
 Thank you for your interest in contributing to MerkleKV Mobile! This document provides guidelines for
 contributing to our MQTT-based distributed key-value store with Merkle tree replication.
 
+## 🚀 Latest Updates
+
+### Enhanced Replication System (Current)
+- **Event Publisher**: Production-ready replication with persistent outbox queue
+- **CBOR Serialization**: Efficient binary encoding for replication events  
+- **Observability**: Comprehensive metrics and monitoring capabilities
+- **CI/CD**: Robust testing pipeline with MQTT broker integration
+
 ## 🎯 Project Overview
 
 MerkleKV Mobile is an **MQTT-only** distributed key-value store with **Locked Specification v1.0**.

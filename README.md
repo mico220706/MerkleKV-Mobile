@@ -34,7 +34,18 @@ The system provides:
 - Efficient Merkle tree-based anti-entropy synchronization
 - Device-specific message routing using client IDs
 
-## What's New (Phase 1 — Core)
+## What's New (Enhanced Replication System)
+
+### Recent Updates (PR #58)
+
+- **Enhanced Event Publisher** (Locked Spec §7): Complete replication event publishing system with reliable delivery, persistent outbox queue, and comprehensive observability
+- **CBOR Serialization**: Efficient binary serialization for replication events using RFC 8949 standard
+- **Persistent Outbox Queue**: Buffered event delivery with offline resilience and at-least-once guarantee  
+- **Monotonic Sequence Numbers**: Ordered event delivery with automatic recovery and gap detection
+- **Comprehensive Metrics**: Built-in observability for monitoring publish rates, queue status, and delivery health
+- **Production-Ready CI**: Robust GitHub Actions workflow with MQTT broker testing and smoke tests
+
+### Core Features (Phase 1)
 
 - **MerkleKVConfig** (Locked Spec §11): Centralized, immutable configuration with strict validation, secure credential handling, JSON (sans secrets), `copyWith`, and defaults:
   - `keepAliveSeconds=60`, `sessionExpirySeconds=86400`, `skewMaxFutureMs=300000`, `tombstoneRetentionHours=24`.
