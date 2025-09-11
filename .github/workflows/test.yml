@@ -4,29 +4,19 @@ on: [push, pull_request]
 jobs:
   unit:
     runs-on: ubuntu-latest
+    container:
+      image: dart:3.9.3
     defaults:
       run:
         working-directory: packages/merkle_kv_core
     steps:
       - uses: actions/checkout@v4
-      - name: Install Dart SDK from archive (bypass corrupted hostedtoolcache)
+      - name: Fix missing frontend_server.dart.snapshot
         run: |
-          # Remove any existing Dart installations
-          sudo rm -rf /opt/hostedtoolcache/dart
-          rm -rf ~/.dart
-          rm -rf ~/.pub-cache
-          
-          # Download and install Dart SDK directly
-          wget -qO- https://storage.googleapis.com/dart-archive/channels/stable/release/latest/sdk/dartsdk-linux-x64-release.zip > dart-sdk.zip
-          unzip -q dart-sdk.zip
-          sudo mv dart-sdk /opt/dart
-          
-          # Add to PATH
-          echo "/opt/dart/bin" >> $GITHUB_PATH
-          export PATH="/opt/dart/bin:$PATH"
-          
-          # Verify installation
-          dart --version
+          # Create the missing snapshot using the available AOT version
+          if [ ! -f /usr/lib/dart/bin/snapshots/frontend_server.dart.snapshot ]; then
+            cp /usr/lib/dart/bin/snapshots/frontend_server_aot.dart.snapshot /usr/lib/dart/bin/snapshots/frontend_server.dart.snapshot
+          fi
       - run: dart pub get
       - run: dart analyze
       - name: Run unit tests
@@ -34,6 +24,8 @@ jobs:
 
   integration:
     runs-on: ubuntu-latest
+    container:
+      image: dart:3.9.3
     defaults:
       run:
         working-directory: packages/merkle_kv_core
@@ -45,6 +37,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: Start Mosquitto broker
         run: |
+          apt-get update && apt-get install -y netcat-traditional docker.io
           docker run -d \
             --name mosquitto \
             -p 1883:1883 \
@@ -59,24 +52,12 @@ jobs:
             echo "Waiting for Mosquitto... ($i/30)"
             sleep 1
           done
-      - name: Install Dart SDK from archive (bypass corrupted hostedtoolcache)
+      - name: Fix missing frontend_server.dart.snapshot
         run: |
-          # Remove any existing Dart installations
-          sudo rm -rf /opt/hostedtoolcache/dart
-          rm -rf ~/.dart
-          rm -rf ~/.pub-cache
-          
-          # Download and install Dart SDK directly
-          wget -qO- https://storage.googleapis.com/dart-archive/channels/stable/release/latest/sdk/dartsdk-linux-x64-release.zip > dart-sdk.zip
-          unzip -q dart-sdk.zip
-          sudo mv dart-sdk /opt/dart
-          
-          # Add to PATH
-          echo "/opt/dart/bin" >> $GITHUB_PATH
-          export PATH="/opt/dart/bin:$PATH"
-          
-          # Verify installation
-          dart --version
+          # Create the missing snapshot using the available AOT version
+          if [ ! -f /usr/lib/dart/bin/snapshots/frontend_server.dart.snapshot ]; then
+            cp /usr/lib/dart/bin/snapshots/frontend_server_aot.dart.snapshot /usr/lib/dart/bin/snapshots/frontend_server.dart.snapshot
+          fi
       - run: dart pub get
       - name: Run integration tests
         run: |
