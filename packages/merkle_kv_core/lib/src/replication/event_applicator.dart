@@ -7,6 +7,7 @@ import '../storage/storage_interface.dart';
 import '../storage/storage_entry.dart';
 import 'cbor_serializer.dart';
 import 'metrics.dart';
+import 'lww_resolver.dart';
 
 /// Application status for incoming replication events
 enum ApplicationResult {
@@ -266,6 +267,7 @@ class ReplicationEventApplicatorImpl implements ReplicationEventApplicator {
   final StorageInterface _storage;
   final ReplicationMetrics _metrics;
   final DeduplicationTracker _deduplicationTracker;
+  final LWWResolver _lwwResolver;
   
   final StreamController<ApplicationStatus> _statusController = 
       StreamController<ApplicationStatus>.broadcast();
@@ -284,10 +286,12 @@ class ReplicationEventApplicatorImpl implements ReplicationEventApplicator {
     required StorageInterface storage,
     ReplicationMetrics? metrics,
     DeduplicationTracker? deduplicationTracker,
+    LWWResolver? lwwResolver,
   }) : _config = config,
        _storage = storage,
        _metrics = metrics ?? const NoOpReplicationMetrics(),
-       _deduplicationTracker = deduplicationTracker ?? DeduplicationTracker();
+       _deduplicationTracker = deduplicationTracker ?? DeduplicationTracker(),
+       _lwwResolver = lwwResolver ?? LWWResolverImpl();
 
   @override
   Stream<ApplicationStatus> get applicationStatus => _statusController.stream;
@@ -526,27 +530,28 @@ class ReplicationEventApplicatorImpl implements ReplicationEventApplicator {
 
   /// Clamps timestamp to prevent excessive future skew
   ReplicationEvent _clampTimestamp(ReplicationEvent event) {
-    final now = DateTime.now().millisecondsSinceEpoch;
-    final maxFuture = now + _config.skewMaxFutureMs;
+    final originalTimestamp = event.timestampMs;
+    final clampedTimestamp = _lwwResolver.clampTimestamp(originalTimestamp);
     
-    if (event.timestampMs <= maxFuture) {
-      return event; // No clamping needed
+    // Track clamping metrics
+    if (clampedTimestamp != originalTimestamp) {
+      _metrics.incrementLWWTimestampClamps();
     }
     
-    // Create clamped event
+    // Convert back to ReplicationEvent with clamped timestamp
     if (event.tombstone) {
       return ReplicationEvent.tombstone(
         key: event.key,
         nodeId: event.nodeId,
         seq: event.seq,
-        timestampMs: maxFuture,
+        timestampMs: clampedTimestamp,
       );
     } else {
       return ReplicationEvent.value(
         key: event.key,
         nodeId: event.nodeId,
         seq: event.seq,
-        timestampMs: maxFuture,
+        timestampMs: clampedTimestamp,
         value: event.value!,
       );
     }
@@ -558,46 +563,42 @@ class ReplicationEventApplicatorImpl implements ReplicationEventApplicator {
       return _LWWResult.apply; // No conflict
     }
     
-    // Compare (timestampMs, nodeId) tuples per Spec §5.1
-    final comparison = _compareLWWKeys(
-      event.timestampMs, event.nodeId,
-      existing.timestampMs, existing.nodeId,
-    );
-    
-    if (comparison < 0) {
-      return _LWWResult.older; // Event is older
-    } else if (comparison > 0) {
-      return _LWWResult.apply; // Event is newer
+    // Convert event to StorageEntry for comparison
+    final StorageEntry eventEntry;
+    if (event.tombstone) {
+      eventEntry = StorageEntry.tombstone(
+        key: event.key,
+        timestampMs: event.timestampMs,
+        nodeId: event.nodeId,
+        seq: event.seq,
+      );
     } else {
-      // Identical (timestampMs, nodeId) - check content
-      final eventContentHash = _getContentHash(event);
-      final existingContentHash = _getContentHash(existing);
-      
-      if (eventContentHash == existingContentHash) {
+      eventEntry = StorageEntry.value(
+        key: event.key,
+        value: event.value!,
+        timestampMs: event.timestampMs,
+        nodeId: event.nodeId,
+        seq: event.seq,
+      );
+    }
+    
+    // Use LWW resolver to compare entries
+    final comparison = _lwwResolver.compare(eventEntry, existing);
+    
+    // Track metrics
+    _metrics.incrementLWWComparisons();
+    
+    switch (comparison) {
+      case ComparisonResult.localWins:
+        _metrics.incrementLWWLocalWins();
+        return _LWWResult.apply; // Event is newer
+      case ComparisonResult.remoteWins:
+        _metrics.incrementLWWRemoteWins();
+        return _LWWResult.older; // Event is older
+      case ComparisonResult.duplicate:
+        _metrics.incrementLWWDuplicates();
         return _LWWResult.duplicate; // Same content
-      } else {
-        return _LWWResult.anomaly; // Different content - anomaly
-      }
     }
-  }
-
-  /// Compares LWW keys: (timestampMs, nodeId)
-  int _compareLWWKeys(int ts1, String node1, int ts2, String node2) {
-    final tsComparison = ts1.compareTo(ts2);
-    if (tsComparison != 0) {
-      return tsComparison;
-    }
-    return node1.compareTo(node2);
-  }
-
-  /// Gets content hash for duplicate detection
-  String _getContentHash(dynamic entry) {
-    if (entry is ReplicationEvent) {
-      return '${entry.tombstone}:${entry.value ?? ''}';
-    } else if (entry is StorageEntry) {
-      return '${entry.isTombstone}:${entry.value ?? ''}';
-    }
-    return '';
   }
 
   /// Applies event to storage layer

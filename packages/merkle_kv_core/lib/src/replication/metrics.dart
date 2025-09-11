@@ -43,6 +43,23 @@ abstract class ReplicationMetrics {
   
   /// Record application latency in milliseconds
   void recordApplicationLatency(int milliseconds) {}
+  
+  // LWW conflict resolution metrics (for issue #15)
+  
+  /// Increment the total number of LWW comparisons performed
+  void incrementLWWComparisons() {}
+  
+  /// Increment the total number of LWW conflicts where local entry wins
+  void incrementLWWLocalWins() {}
+  
+  /// Increment the total number of LWW conflicts where remote entry wins
+  void incrementLWWRemoteWins() {}
+  
+  /// Increment the total number of LWW duplicates detected
+  void incrementLWWDuplicates() {}
+  
+  /// Increment the total number of timestamps clamped due to clock skew
+  void incrementLWWTimestampClamps() {}
 }
 
 /// No-op implementation for when metrics are disabled
@@ -87,6 +104,21 @@ class NoOpReplicationMetrics implements ReplicationMetrics {
 
   @override
   void recordApplicationLatency(int milliseconds) {}
+
+  @override
+  void incrementLWWComparisons() {}
+
+  @override
+  void incrementLWWLocalWins() {}
+
+  @override
+  void incrementLWWRemoteWins() {}
+
+  @override
+  void incrementLWWDuplicates() {}
+
+  @override
+  void incrementLWWTimestampClamps() {}
 }
 
 /// Simple in-memory metrics implementation for testing/debugging
@@ -101,6 +133,11 @@ class InMemoryReplicationMetrics implements ReplicationMetrics {
   int _eventsDuplicate = 0;
   int _conflictsResolved = 0;
   int _eventsClamped = 0;
+  int _lwwComparisons = 0;
+  int _lwwLocalWins = 0;
+  int _lwwRemoteWins = 0;
+  int _lwwDuplicates = 0;
+  int _lwwTimestampClamps = 0;
   final List<int> _publishLatencies = <int>[];
   final List<int> _flushDurations = <int>[];
   final List<int> _applicationLatencies = <int>[];
@@ -115,6 +152,11 @@ class InMemoryReplicationMetrics implements ReplicationMetrics {
   int get eventsDuplicate => _eventsDuplicate;
   int get conflictsResolved => _conflictsResolved;
   int get eventsClamped => _eventsClamped;
+  int get lwwComparisons => _lwwComparisons;
+  int get lwwLocalWins => _lwwLocalWins;
+  int get lwwRemoteWins => _lwwRemoteWins;
+  int get lwwDuplicates => _lwwDuplicates;
+  int get lwwTimestampClamps => _lwwTimestampClamps;
   List<int> get publishLatencies => List.unmodifiable(_publishLatencies);
   List<int> get flushDurations => List.unmodifiable(_flushDurations);
   List<int> get applicationLatencies => List.unmodifiable(_applicationLatencies);
@@ -184,6 +226,31 @@ class InMemoryReplicationMetrics implements ReplicationMetrics {
     _applicationLatencies.add(milliseconds);
   }
 
+  @override
+  void incrementLWWComparisons() {
+    _lwwComparisons++;
+  }
+
+  @override
+  void incrementLWWLocalWins() {
+    _lwwLocalWins++;
+  }
+
+  @override
+  void incrementLWWRemoteWins() {
+    _lwwRemoteWins++;
+  }
+
+  @override
+  void incrementLWWDuplicates() {
+    _lwwDuplicates++;
+  }
+
+  @override
+  void incrementLWWTimestampClamps() {
+    _lwwTimestampClamps++;
+  }
+
   /// Reset all metrics (useful for testing)
   void reset() {
     _eventsPublished = 0;
@@ -196,6 +263,11 @@ class InMemoryReplicationMetrics implements ReplicationMetrics {
     _eventsDuplicate = 0;
     _conflictsResolved = 0;
     _eventsClamped = 0;
+    _lwwComparisons = 0;
+    _lwwLocalWins = 0;
+    _lwwRemoteWins = 0;
+    _lwwDuplicates = 0;
+    _lwwTimestampClamps = 0;
     _publishLatencies.clear();
     _flushDurations.clear();
     _applicationLatencies.clear();
@@ -222,6 +294,11 @@ class InMemoryReplicationMetrics implements ReplicationMetrics {
         'eventsDuplicate: $_eventsDuplicate, '
         'conflictsResolved: $_conflictsResolved, '
         'eventsClamped: $_eventsClamped, '
+        'lwwComparisons: $_lwwComparisons, '
+        'lwwLocalWins: $_lwwLocalWins, '
+        'lwwRemoteWins: $_lwwRemoteWins, '
+        'lwwDuplicates: $_lwwDuplicates, '
+        'lwwTimestampClamps: $_lwwTimestampClamps, '
         'avgPublishLatency: ${avgPublishLatency.toStringAsFixed(1)}ms, '
         'avgApplicationLatency: ${avgApplicationLatency.toStringAsFixed(1)}ms'
         ')';
