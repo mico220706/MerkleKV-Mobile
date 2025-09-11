@@ -29,7 +29,7 @@ void main() {
       merkleTree.rootHashChanges.listen((hash) => rootHashChanges.add(hash));
       
       // Initial empty state
-      final rootHash = await merkleTree.getRootHash();
+      await merkleTree.getRootHash();
       expect(rootHashChanges.length, equals(1)); // Empty root hash
       
       // Add first entry

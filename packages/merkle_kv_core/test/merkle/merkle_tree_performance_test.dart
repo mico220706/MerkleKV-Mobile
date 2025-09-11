@@ -289,7 +289,7 @@ void main() {
               seq: currentSeq++,
             );
             await storage.put(key, entry);
-            totalEntries++;
+            // totalEntries++; // Tracked but not used in output
             break;
             
           case 1: // Update (if key exists)
