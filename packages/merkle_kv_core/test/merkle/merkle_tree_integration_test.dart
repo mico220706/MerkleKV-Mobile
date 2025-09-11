@@ -8,13 +8,14 @@ void main() {
     late InMemoryReplicationMetrics metrics;
     late MerkleTreeImpl merkleTree;
     
-    setUp(() {
+    setUp(() async {
       final config = MerkleKVConfig.defaultConfig(
         host: 'localhost',
         clientId: 'test-client',
         nodeId: 'test-node',
       );
       storage = InMemoryStorage(config);
+      await storage.initialize();
       metrics = InMemoryReplicationMetrics();
       merkleTree = MerkleTreeImpl(storage, metrics);
     });
@@ -28,7 +29,7 @@ void main() {
       merkleTree.rootHashChanges.listen((hash) => rootHashChanges.add(hash));
       
       // Initial empty state
-      var rootHash = await merkleTree.getRootHash();
+      final rootHash = await merkleTree.getRootHash();
       expect(rootHashChanges.length, equals(1)); // Empty root hash
       
       // Add first entry

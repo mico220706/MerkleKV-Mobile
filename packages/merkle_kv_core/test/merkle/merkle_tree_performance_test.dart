@@ -1,5 +1,4 @@
 import 'dart:math';
-import 'dart:typed_data';
 import 'package:test/test.dart';
 import 'package:merkle_kv_core/merkle_kv_core.dart';
 
@@ -9,13 +8,14 @@ void main() {
     late InMemoryReplicationMetrics metrics;
     late MerkleTreeImpl merkleTree;
     
-    setUp(() {
+    setUp(() async {
       final config = MerkleKVConfig.defaultConfig(
         host: 'localhost',
         clientId: 'perf-client',
         nodeId: 'perf-node',
       );
       storage = InMemoryStorage(config);
+      await storage.initialize();
       metrics = InMemoryReplicationMetrics();
       merkleTree = MerkleTreeImpl(storage, metrics);
     });
@@ -120,7 +120,7 @@ void main() {
         final valueLength = 20 + random.nextInt(200);
         
         final key = 'key_${i.toString().padLeft(6, '0')}_${'x' * keyLength}';
-        final value = 'value_$i_${'y' * valueLength}';
+        final value = 'value_$i${'y' * valueLength}';
         
         await storage.put(key, StorageEntry.value(
           key: key,
@@ -273,7 +273,7 @@ void main() {
       final random = Random(123); // Fixed seed for reproducibility
       
       var currentSeq = 1;
-      var totalEntries = 0;
+      // var totalEntries = 0; // Tracked but not used in output
       
       for (int i = 0; i < operationCount; i++) {
         final operation = random.nextInt(3); // 0=insert, 1=update, 2=delete
