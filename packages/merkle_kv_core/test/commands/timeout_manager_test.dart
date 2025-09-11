@@ -89,9 +89,9 @@ void main() {
       );
 
       
-      final delay1 = policy.calculateDelay(1);
-      final delay2 = policy.calculateDelay(2);
-      final delay3 = policy.calculateDelay(3);
+      final delay1 = retryPolicy.calculateDelay(1);
+      final delay2 = retryPolicy.calculateDelay(2);
+      final delay3 = retryPolicy.calculateDelay(3);
       
       // With backoffFactor 2.0:
       // - First attempt: 100ms
