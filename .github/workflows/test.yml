@@ -15,6 +15,10 @@ jobs:
       - run: dart pub get
       - name: Clean Dart cache
         run: dart pub cache clean
+      - name: Warm up Dart compiler
+        run: |
+          dart compile kernel --help > /dev/null 2>&1 || true
+          dart compile exe --help > /dev/null 2>&1 || true
       - run: dart analyze
       - name: Run unit tests
         run: dart test -x integration --reporter=expanded --timeout=30s
@@ -52,5 +56,12 @@ jobs:
       - run: dart pub get
       - name: Clean Dart cache
         run: dart pub cache clean
+      - name: Warm up Dart compiler
+        run: |
+          dart compile kernel --help > /dev/null 2>&1 || true
+          dart compile exe --help > /dev/null 2>&1 || true
       - name: Run integration tests
-        run: dart test -t integration --reporter=expanded --timeout=90s --chain-stack-traces
+        run: |
+          dart test test/replication/integration_test.dart --reporter=expanded --timeout=90s --chain-stack-traces
+          dart test test/replication/event_publisher_integration_test.dart --reporter=expanded --timeout=90s --chain-stack-traces
+          dart test test/commands/integration_test.dart --reporter=expanded --timeout=90s --chain-stack-traces
