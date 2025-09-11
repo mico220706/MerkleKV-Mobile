@@ -12,10 +12,12 @@ jobs:
       - uses: dart-lang/setup-dart@v1
         with:
           sdk: stable
-      - name: Clean Dart cache
+      - name: Fix corrupted frontend server snapshot
         run: |
           rm -rf ~/.dart
           rm -rf ~/.pub-cache
+          # Regenerate corrupted snapshots
+          dart --disable-dart-dev compile kernel --help > /dev/null || true
       - run: dart pub get
       - run: dart analyze
       - name: Run unit tests
@@ -51,10 +53,12 @@ jobs:
       - uses: dart-lang/setup-dart@v1
         with:
           sdk: stable
-      - name: Clean Dart cache
+      - name: Fix corrupted frontend server snapshot
         run: |
           rm -rf ~/.dart
           rm -rf ~/.pub-cache
+          # Regenerate corrupted snapshots
+          dart --disable-dart-dev compile kernel --help > /dev/null || true
       - run: dart pub get
       - name: Run integration tests
         run: |
