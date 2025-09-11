@@ -44,8 +44,26 @@ class TimeoutManager {
   /// Map of active operations with their start times
   final Map<String, Stopwatch> _activeOperations = {};
   
+  /// Custom timeout overrides for testing
+  final Map<OperationType, Duration> _customTimeouts = {};
+  
+  /// Sets a custom timeout for an operation type (useful for testing)
+  void setCustomTimeout(OperationType type, Duration timeout) {
+    _customTimeouts[type] = timeout;
+  }
+  
+  /// Clears custom timeouts
+  void clearCustomTimeouts() {
+    _customTimeouts.clear();
+  }
+  
   /// Gets timeout duration for a specific operation type
   Duration getTimeoutForType(OperationType type) {
+    // Check for custom timeout first
+    if (_customTimeouts.containsKey(type)) {
+      return _customTimeouts[type]!;
+    }
+    
     switch (type) {
       case OperationType.singleKey:
         return singleKeyTimeout;

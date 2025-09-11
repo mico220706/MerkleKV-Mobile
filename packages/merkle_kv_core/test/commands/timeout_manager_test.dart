@@ -216,29 +216,32 @@ void main() {
     });
 
     test('times out operations that take too long', () async {
-      // This test is problematic because it's trying to test a 10+ second timeout
-      // within a 30-second test timeout. Let's make it more realistic.
-      
-      // Create a manager with a custom timeout manager for testing
-      final testTimeoutManager = TimeoutManager();
-      final testManager = OperationManager(timeoutManager: testTimeoutManager);
-      
-      final String requestId = 'timeout-test';
-      
-      // We'll test this differently - we'll manually trigger timeout logic
-      testTimeoutManager.startOperation(requestId);
-      
-      // Wait a short time
-      await Future.delayed(const Duration(milliseconds: 50));
-      
-      // Manually test timeout with a very short timeout period
-      expect(testTimeoutManager.isTimedOut(requestId, Duration(milliseconds: 10)), isTrue);
-      
-      // Test that a TimeoutException would be thrown
-      expect(() {
-        testTimeoutManager.checkTimeout(requestId, OperationType.singleKey);
-      }, throwsA(isA<TimeoutException>()));
-    }, timeout: Timeout(Duration(seconds: 5))); // Shorter timeout for this test
+        // Create a manager with a very short timeout for testing
+        final testTimeoutManager = TimeoutManager();
+        // Set a very short timeout for testing (100ms)
+        testTimeoutManager.setCustomTimeout(OperationType.singleKey, Duration(milliseconds: 100));
+        
+        final testManager = OperationManager(timeoutManager: testTimeoutManager);
+        
+        final String requestId = 'timeout-test';
+        
+        // Test that executeWithRetry actually times out
+        await expectLater(
+            testManager.executeWithRetry(
+            requestId: requestId,
+            operationType: OperationType.singleKey,
+            operation: () async {
+                // This operation takes longer than our 100ms timeout
+                await Future.delayed(const Duration(milliseconds: 200));
+                return 'success';
+            },
+            ),
+            throwsA(isA<TimeoutException>()),
+        );
+        
+        // Clean up
+        testTimeoutManager.clearCustomTimeouts();
+    }, timeout: Timeout(Duration(seconds: 5))); // Give the test enough time
 
     test('queues failed operations for retry', () async {
       final operation = RetriableOperation(
