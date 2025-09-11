@@ -1,4 +1,5 @@
 import 'dart:convert';
+import '../models/key_value_result.dart';
 
 /// Error codes for MerkleKV responses per Locked Spec §3.2.
 class ErrorCode {
@@ -85,6 +86,9 @@ class Response {
   /// Additional response metadata
   final Map<String, dynamic>? metadata;
 
+  /// Results for bulk operations (MGET/MSET)  
+  final List<KeyValueResult>? results;
+
   const Response({
     required this.id,
     required this.status,
@@ -92,6 +96,7 @@ class Response {
     this.error,
     this.errorCode,
     this.metadata,
+    this.results,
   });
 
   /// Creates a successful response.
@@ -178,6 +183,23 @@ class Response {
     );
   }
 
+  /// Creates a bulk operation response. 
+  factory Response.bulk({
+    required String id,
+    required List<KeyValueResult> results,
+    Map<String, dynamic>? metadata,
+  }) {
+    return Response(
+      id: id,
+      status: ResponseStatus.ok,
+      results: results,
+      metadata: metadata,
+    );
+  }
+
+  /// Returns true if this response is a bulk operation response. 
+  bool get isBulkResponse => results != null;
+
   /// Creates an idempotent replay response.
   factory Response.idempotentReplay(String id, dynamic value) {
     return Response(
@@ -214,6 +236,14 @@ class Response {
 
     final responseStatus = ResponseStatus.fromString(status);
 
+    // ADD THIS: Handle bulk results
+    List<KeyValueResult>? results;
+    if (json['results'] != null) {
+      results = (json['results'] as List)
+          .map((r) => KeyValueResult.fromJson(r as Map<String, dynamic>))
+          .toList();
+    }
+
     return Response(
       id: id,
       status: responseStatus,
@@ -221,17 +251,25 @@ class Response {
       error: json['error'] as String?,
       errorCode: json['errorCode'] as int?,
       metadata: (json['metadata'] as Map?)?.cast<String, dynamic>(),
+      results: results,  // ADD THIS
     );
   }
 
-  /// Converts Response to JSON object for serialization.
+/// Converts Response to JSON object for serialization.
   Map<String, dynamic> toJson() {
-    final json = <String, dynamic>{'id': id, 'status': status.value};
+    final json = <String, dynamic>{
+      'id': id,
+      'status': status.value,
+    };
 
     if (value != null) json['value'] = value;
     if (error != null) json['error'] = error;
     if (errorCode != null) json['errorCode'] = errorCode;
     if (metadata != null) json['metadata'] = metadata;
+    // ADD THIS: Include bulk results
+    if (results != null) {
+      json['results'] = results!.map((r) => r.toJson()).toList();
+    }
 
     return json;
   }
@@ -271,7 +309,8 @@ class Response {
           value == other.value &&
           error == other.error &&
           errorCode == other.errorCode &&
-          _mapEquals(metadata, other.metadata);
+          _mapEquals(metadata, other.metadata) &&
+          _listEquals(results, other.results);  
 
   @override
   int get hashCode =>
@@ -280,7 +319,28 @@ class Response {
       value.hashCode ^
       error.hashCode ^
       errorCode.hashCode ^
-      _mapHashCode(metadata);
+      _mapHashCode(metadata) ^
+      _listHashCode(results);  
+
+  // Helper method for list equality
+  bool _listEquals(List? a, List? b) {
+    if (a == null) return b == null;
+    if (b == null || a.length != b.length) return false;
+    for (int i = 0; i < a.length; i++) {
+      if (a[i] != b[i]) return false;
+    }
+    return true;
+  }
+
+  // Helper method for list hash code
+  int _listHashCode(List? list) {
+    if (list == null) return 0;
+    int hash = 0;
+    for (final item in list) {
+      hash ^= item.hashCode;
+    }
+    return hash;
+  }
 
   @override
   String toString() =>

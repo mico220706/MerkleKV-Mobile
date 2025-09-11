@@ -2,6 +2,8 @@ import 'dart:convert';
 
 import '../utils/numeric_operations.dart';
 import '../utils/string_operations.dart';
+import '../utils/bulk_operations.dart';
+import '../models/key_value_result.dart';
 
 /// Represents a command to be sent to MerkleKV.
 ///
@@ -245,6 +247,30 @@ class Command {
       op: 'PREPEND',
       key: key,
       value: value,
+    );
+  }
+
+  /// Creates an MGET command.
+  factory Command.mget({
+    required String id,
+    required List<String> keys,
+  }) {
+    return Command(
+      id: id,
+      op: 'MGET',
+      keys: keys,
+    );
+  }
+
+  /// Creates an MSET command.
+  factory Command.mset({
+    required String id,
+    required Map<String, dynamic> keyValues,
+  }) {
+    return Command(
+      id: id,
+      op: 'MSET',
+      keyValues: keyValues,
     );
   }
 }
