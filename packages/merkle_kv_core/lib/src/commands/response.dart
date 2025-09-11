@@ -85,6 +85,9 @@ class Response {
   /// Additional response metadata
   final Map<String, dynamic>? metadata;
 
+  /// Results for bulk operations (MGET/MSET)  
+  final List<KeyValueResult>? results;
+
   const Response({
     required this.id,
     required this.status,
@@ -92,6 +95,7 @@ class Response {
     this.error,
     this.errorCode,
     this.metadata,
+    this.results,
   });
 
   /// Creates a successful response.
@@ -178,6 +182,20 @@ class Response {
     );
   }
 
+  /// Creates a bulk operation response. 
+  factory Response.bulk({
+    required String id,
+    required List<KeyValueResult> results,
+    Map<String, dynamic>? metadata,
+  }) {
+    return Response(
+      id: id,
+      status: ResponseStatus.ok,
+      results: results,
+      metadata: metadata,
+    );
+  }
+
   /// Creates an idempotent replay response.
   factory Response.idempotentReplay(String id, dynamic value) {
     return Response(
@@ -201,37 +219,40 @@ class Response {
   ///
   /// Validates required fields and throws [FormatException] for invalid format.
   factory Response.fromJson(Map<String, dynamic> json) {
-    final id = json['id'];
-    final status = json['status'];
-
-    if (id == null || id is! String) {
-      throw const FormatException('Missing or invalid "id" field');
+    final responseStatus = ResponseStatus.fromString(json['status']);
+    
+    List<KeyValueResult>? results;
+    if (json['results'] != null) {
+      results = (json['results'] as List)
+          .map((r) => KeyValueResult.fromJson(r as Map<String, dynamic>))
+          .toList();
     }
-
-    if (status == null || status is! String) {
-      throw const FormatException('Missing or invalid "status" field');
-    }
-
-    final responseStatus = ResponseStatus.fromString(status);
 
     return Response(
-      id: id,
+      id: json['id'] as String,
       status: responseStatus,
       value: json['value'],
       error: json['error'] as String?,
       errorCode: json['errorCode'] as int?,
       metadata: (json['metadata'] as Map?)?.cast<String, dynamic>(),
+      results: results,
     );
   }
 
   /// Converts Response to JSON object for serialization.
   Map<String, dynamic> toJson() {
-    final json = <String, dynamic>{'id': id, 'status': status.value};
+    final json = <String, dynamic>{
+      'id': id,
+      'status': status.value,
+    };
 
     if (value != null) json['value'] = value;
     if (error != null) json['error'] = error;
     if (errorCode != null) json['errorCode'] = errorCode;
     if (metadata != null) json['metadata'] = metadata;
+    if (results != null) {
+      json['results'] = results!.map((r) => r.toJson()).toList();
+    }
 
     return json;
   }
@@ -260,6 +281,9 @@ class Response {
 
   /// Returns true if this response is from an idempotent replay.
   bool get isIdempotentReplay => errorCode == ErrorCode.idempotentReplay;
+
+  /// Returns true if this response is a bulk operation response.  
+  bool get isBulkResponse => results != null;
 
   @override
   bool operator ==(Object other) =>
