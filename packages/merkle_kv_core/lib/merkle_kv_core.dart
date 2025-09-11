@@ -33,6 +33,7 @@ export 'src/replication/cbor_serializer.dart';
 export 'src/replication/event_publisher.dart';
 export 'src/replication/event_applicator.dart';
 export 'src/replication/metrics.dart';
+export 'src/replication/lww_resolver.dart';
 
 // Core exports will be added in future phases
 // export 'src/merkle_kv_mobile.dart';
