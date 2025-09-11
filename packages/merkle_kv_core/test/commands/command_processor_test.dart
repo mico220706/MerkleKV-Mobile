@@ -5,6 +5,7 @@ import 'package:merkle_kv_core/src/commands/response.dart';
 import 'package:merkle_kv_core/src/config/merkle_kv_config.dart';
 import 'package:merkle_kv_core/src/storage/storage_interface.dart';
 import 'package:merkle_kv_core/src/storage/storage_entry.dart';
+import 'package:merkle_kv_core/src/models/key_value_result.dart';
 
 /// Mock storage implementation for testing.
 class MockStorage implements StorageInterface {
