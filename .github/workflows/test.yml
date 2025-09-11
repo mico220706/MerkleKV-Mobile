@@ -12,16 +12,10 @@ jobs:
       - uses: dart-lang/setup-dart@v1
         with:
           sdk: stable
-      - name: Reinstall Dart SDK to fix corruption
+      - name: Clean Dart cache
         run: |
-          # Remove potentially corrupted Dart cache
           rm -rf ~/.dart
           rm -rf ~/.pub-cache
-          # Reinstall Dart
-          sudo apt-get update
-          sudo apt-get install -y dart
-          # Verify installation
-          dart --version
       - run: dart pub get
       - run: dart analyze
       - name: Run unit tests
@@ -57,16 +51,10 @@ jobs:
       - uses: dart-lang/setup-dart@v1
         with:
           sdk: stable
-      - name: Reinstall Dart SDK to fix corruption
+      - name: Clean Dart cache
         run: |
-          # Remove potentially corrupted Dart cache
           rm -rf ~/.dart
           rm -rf ~/.pub-cache
-          # Reinstall Dart
-          sudo apt-get update
-          sudo apt-get install -y dart
-          # Verify installation
-          dart --version
       - run: dart pub get
       - name: Run integration tests
         run: |
