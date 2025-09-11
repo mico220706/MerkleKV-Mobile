@@ -13,6 +13,8 @@ jobs:
         with:
           sdk: stable
       - run: dart pub get
+      - name: Clean Dart cache
+        run: dart pub cache clean
       - run: dart analyze
       - name: Run unit tests
         run: dart test -x integration --reporter=expanded --timeout=30s
@@ -48,5 +50,7 @@ jobs:
         with:
           sdk: stable
       - run: dart pub get
+      - name: Clean Dart cache
+        run: dart pub cache clean
       - name: Run integration tests
         run: dart test -t integration --reporter=expanded --timeout=90s --chain-stack-traces
