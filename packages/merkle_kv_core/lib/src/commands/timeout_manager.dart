@@ -90,18 +90,20 @@ class TimeoutManager {
   }
   
   /// Cleans up any stale operations (useful for periodic maintenance)
-  void cleanupStaleOperations() {
-    final staleOperations = <String>[];
-    
-    _activeOperations.forEach((requestId, stopwatch) {
-      // Consider any operation over 30s (max timeout) as stale
-      if (stopwatch.elapsed > syncTimeout) {
-        staleOperations.add(requestId);
-      }
-    });
-    
-    for (final requestId in staleOperations) {
-      stopOperation(requestId);
+  /// Cleans up any stale operations (useful for periodic maintenance)
+    void cleanupStaleOperations() {
+        final staleOperations = <String>[];
+        
+        _activeOperations.forEach((requestId, stopwatch) {
+            // Consider any operation over 30s (max timeout) as stale
+            if (stopwatch.elapsed > syncTimeout) {
+            staleOperations.add(requestId);
+            }
+        });
+        
+        // Actually remove the stale operations
+        for (final requestId in staleOperations) {
+            _activeOperations.remove(requestId)?.stop();
+        }
     }
-  }
 }

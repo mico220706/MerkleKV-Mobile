@@ -51,15 +51,17 @@ void main() {
     });
 
     test('throws TimeoutException when operation times out', () async {
-    const String requestId = 'test-request-4';
-        timeoutManager.startOperation(requestId);
+      const String requestId = 'test-request-4';
+      timeoutManager.startOperation(requestId);
 
-        // wait beyond the timeout
-        await Future.delayed(const Duration(milliseconds: 30));
+      // Wait beyond the timeout
+      await Future.delayed(const Duration(milliseconds: 50));
 
-        return Future.delayed(const Duration(milliseconds: 30), () {
-            expect(() => timeoutManager.checkTimeout(requestId, OperationType.singleKey),throwsA(isA<TimeoutException>()));
-        });
+      // Use expectLater for async operations and proper exception handling
+      expect(
+        () => timeoutManager.checkTimeout(requestId, OperationType.singleKey),
+        throwsA(isA<TimeoutException>())
+      );
     });
 
     test('cleanup stale operations', () async {
@@ -73,7 +75,7 @@ void main() {
       timeoutManager.cleanupStaleOperations();
       
       // The operation should have been removed
-      expect(timeoutManager.getElapsedTime(requestId).inMilliseconds, lessThan(100));
+      expect(timeoutManager.getElapsedTime(requestId), Duration.zero);
     });
   });
 
@@ -83,22 +85,18 @@ void main() {
         maxAttempts: 3,
         initialDelay: const Duration(milliseconds: 100),
         backoffFactor: 2,
-        maxDelay: const Duration(milliseconds: 50),
+        maxDelay: const Duration(milliseconds: 1000), // Increased to allow for backoff
+        jitterFactor: 0.2, // 20% jitter
         random: MockRandom(),
       );
 
-      
       final delay1 = retryPolicy.calculateDelay(1);
       final delay2 = retryPolicy.calculateDelay(2);
       final delay3 = retryPolicy.calculateDelay(3);
       
-      // With backoffFactor 2.0:
-      // - First attempt: 100ms
-      // - Second attempt: 200ms
-      // - Third attempt: 400ms
-      
-      // With a mock random that always returns 0.5, jitter factor will be 0
-      // so delays will be exactly as calculated
+      // With MockRandom returning 0.5:
+      // jitter = (0.5 - 0.5) * 2 * 0.2 = 0
+      // So delays should be: 100ms, 200ms, 400ms
       expect(delay1.inMilliseconds, 100);
       expect(delay2.inMilliseconds, 200);
       expect(delay3.inMilliseconds, 400);
@@ -111,10 +109,6 @@ void main() {
         maxDelay: const Duration(seconds: 5),
         random: MockRandom(),
       );
-      
-      // With backoffFactor 10.0:
-      // - Attempt 1: 1s
-      // - Attempt 2: 10s (capped to 5s)
       
       final delay1 = policy.calculateDelay(1);
       final delay2 = policy.calculateDelay(2);
@@ -173,7 +167,7 @@ void main() {
           attempts++;
           
           if (attempts < 2) {
-            throw Exception('Temporary network error');
+            throw Exception('Network connection lost'); // Make it retriable
           }
           
           succeeded = true;
@@ -188,21 +182,21 @@ void main() {
     test('uses custom retry policy when specified', () async {
       final customManager = OperationManager(
         retryPolicy: RetryPolicy(
-            initialDelay: const Duration(milliseconds: 50),
-            maxAttempts: 3,
+          initialDelay: const Duration(milliseconds: 50),
+          maxAttempts: 3,
         ),
       );
       
       int attempts = 0;
       
-      await customManager.executeWithRetry(
+      final result = await customManager.executeWithRetry(
         requestId: 'custom-policy-test',
         operationType: OperationType.singleKey,
         operation: () async {
           attempts++;
           
           if (attempts < 3) {
-            throw Exception('Temporary failure');
+            throw Exception('Network connection lost'); // Retriable error
           }
           
           return 'success';
@@ -210,20 +204,23 @@ void main() {
       );
       
       expect(attempts, 3);
+      expect(result, 'success');
     });
 
     test('times out operations that take too long', () async {
       final String requestId = 'timeout-test';
       
-      expectLater(
+      await expectLater(
         operationManager.executeWithRetry(
-            requestId: requestId,
-            operationType: OperationType.singleKey,
-            operation: () async {
-            await Future.delayed(const Duration(seconds: 20));
+          requestId: requestId,
+          operationType: OperationType.singleKey,
+          operation: () async {
+            // Wait longer than the singleKey timeout (10 seconds)
+            await Future.delayed(const Duration(seconds: 15));
             return 'success';
-            },
-        ), throwsA(isA<TimeoutException>()),
+          },
+        ),
+        throwsA(isA<TimeoutException>()),
       );
     });
 
@@ -274,7 +271,7 @@ void main() {
       operationManager.setConnectionState(true);
       
       // Allow time for queue processing
-      await Future.delayed(Duration(milliseconds: 100));
+      await Future.delayed(Duration(milliseconds: 200));
       
       expect(successCount, 5);
       expect(operationManager.retryQueueSize, 0);

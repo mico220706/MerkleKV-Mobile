@@ -169,7 +169,11 @@ class RetryQueue {
     
     try {
       // Check if we've exceeded max retry attempts
-      if (!retryPolicy.shouldRetry(operation.attempts)) {
+      final exception = operation.lastError is Exception 
+        ? operation.lastError as Exception 
+        : Exception(operation.lastError?.toString() ?? 'Unknown error');
+        
+      if (!retryPolicy.shouldRetry(exception, operation.attempts + 1)) {
         _totalPermanentFailures++;
         _logger.warning(
           'Max retry attempts (${retryPolicy.maxAttempts}) reached for operation ' 
