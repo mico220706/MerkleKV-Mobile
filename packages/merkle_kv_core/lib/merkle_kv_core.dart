@@ -15,6 +15,8 @@ export 'src/mqtt/mqtt_client_interface.dart';
 export 'src/mqtt/mqtt_client_impl.dart';
 export 'src/mqtt/topic_scheme.dart';
 export 'src/mqtt/topic_router.dart';
+export 'src/mqtt/connection_lifecycle.dart';
+export 'src/mqtt/connection_logger.dart';
 
 // Commands and Correlation
 export 'src/commands/command.dart';
@@ -31,7 +33,15 @@ export 'src/storage/storage_factory.dart';
 // Replication
 export 'src/replication/cbor_serializer.dart';
 export 'src/replication/event_publisher.dart';
+export 'src/replication/event_applicator.dart';
 export 'src/replication/metrics.dart';
+export 'src/replication/lww_resolver.dart';
+
+// Anti-Entropy Protocol
+export 'src/anti_entropy/sync_protocol.dart';
+
+// Merkle Tree
+export 'src/merkle/merkle_tree.dart';
 
 // Core exports will be added in future phases
 // export 'src/merkle_kv_mobile.dart';

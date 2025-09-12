@@ -25,6 +25,12 @@ class MockStorage implements StorageInterface {
   }
 
   @override
+  Future<void> putWithReconciliation(String key, StorageEntry entry) async {
+    // Same logic as put for testing
+    _entries[key] = entry;
+  }
+
+  @override
   Future<void> delete(
     String key,
     int timestampMs,
@@ -458,6 +464,116 @@ void main() {
         
         expect(response.status, equals(ResponseStatus.ok));
         expect(response.value, equals('Hello 🚀 こんにちは'));
+      });
+    });
+
+    group('MGET/MSET operations', () {
+      test('MGET returns results in submission order', () async {
+        // Set some test data
+        await processor.set('key1', 'value1', 'test-req');
+        await processor.set('key3', 'value3', 'test-req');
+        // key2 intentionally missing
+
+        final command = Command(
+          id: 'req-1',
+          op: 'MGET',
+          keys: ['key1', 'key2', 'key3'],
+        );
+        final response = await processor.processCommand(command);
+
+        expect(response.status, equals(ResponseStatus.ok));
+        expect(response.isBulkResponse, isTrue);
+        expect(response.results!.length, equals(3));
+
+        // Verify submission order maintained
+        expect(response.results![0].key, equals('key1'));
+        expect(response.results![0].isSuccess, isTrue);
+        expect(response.results![0].value, equals('value1'));
+
+        expect(response.results![1].key, equals('key2'));
+        expect(response.results![1].isNotFound, isTrue);
+
+        expect(response.results![2].key, equals('key3'));
+        expect(response.results![2].isSuccess, isTrue);
+        expect(response.results![2].value, equals('value3'));
+      });
+
+      test('MSET maintains submission order in response', () async {
+        final keyValues = {
+          'first': 'value1',
+          'second': 'value2',
+          'third': 'value3',
+        };
+
+        final command = Command(
+          id: 'req-1',
+          op: 'MSET',
+          keyValues: keyValues,
+        );
+        final response = await processor.processCommand(command);
+
+        expect(response.status, equals(ResponseStatus.ok));
+        expect(response.isBulkResponse, isTrue);
+        expect(response.results!.length, equals(3));
+
+        // Verify all successful and in order
+        final keys = ['first', 'second', 'third'];
+        for (int i = 0; i < keys.length; i++) {
+          expect(response.results![i].key, equals(keys[i]));
+          expect(response.results![i].isSuccess, isTrue);
+        }
+      });
+
+      test('MGET rejects too many keys', () async {
+        final tooManyKeys = List.generate(257, (i) => 'key$i');
+        final command = Command(id: 'req-1', op: 'MGET', keys: tooManyKeys);
+        final response = await processor.processCommand(command);
+
+        expect(response.status, equals(ResponseStatus.error));
+        expect(response.errorCode, equals(ErrorCode.invalidRequest));
+      });
+
+      test('MSET rejects too many pairs', () async {
+        final tooManyPairs = <String, dynamic>{};
+        for (int i = 0; i <= 100; i++) {
+          tooManyPairs['key$i'] = 'value$i';
+        }
+
+        final command = Command(id: 'req-1', op: 'MSET', keyValues: tooManyPairs);
+        final response = await processor.processCommand(command);
+
+        expect(response.status, equals(ResponseStatus.error));
+        expect(response.errorCode, equals(ErrorCode.invalidRequest));
+      });
+
+      test('handles mixed success/failure in MSET', () async {
+        // Create a key-value pair that will fail due to oversized key
+        final oversizedKey = 'x' * 300; // > 256 bytes
+        final keyValues = {
+          'good_key': 'value1',
+          oversizedKey: 'value2',
+          'another_good': 'value3',
+        };
+
+        final command = Command(id: 'req-1', op: 'MSET', keyValues: keyValues);
+        final response = await processor.processCommand(command);
+
+        expect(response.status, equals(ResponseStatus.ok));
+        expect(response.results!.length, equals(3));
+
+        // Check mixed results
+        expect(response.results![0].isSuccess, isTrue);  // good_key
+        expect(response.results![1].isError, isTrue);    // oversized key
+        expect(response.results![1].errorCode, equals(ErrorCode.payloadTooLarge));
+        expect(response.results![2].isSuccess, isTrue);  // another_good
+      });
+
+      test('MGET on empty key list returns error', () async {
+        final command = Command(id: 'req-1', op: 'MGET', keys: []);
+        final response = await processor.processCommand(command);
+
+        expect(response.status, equals(ResponseStatus.error));
+        expect(response.errorCode, equals(ErrorCode.invalidRequest));
       });
     });
 
