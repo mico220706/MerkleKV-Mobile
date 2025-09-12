@@ -258,8 +258,8 @@ void main() {
       print('Hash1: $hash1, Hash2: $hash2');
       
       // Record initial metrics
-      final initialPayloadSize = metrics1.maxAntiEntropyPayloadSize;
-      print('Initial max payload size: $initialPayloadSize');
+      final initialPayloadSizes = metrics1.antiEntropyPayloadSizes.length;
+      print('Initial payload size count: $initialPayloadSizes');
 
       // Sync should succeed due to automatic batching
       try {
@@ -268,9 +268,11 @@ void main() {
         print('Sync completed successfully');
         print('Sync result: ${result.success}, keys synced: ${result.keysSynced}');
         
-        // Check that payload size was recorded and is reasonable
-        final maxPayloadSize = metrics1.maxAntiEntropyPayloadSize;
-        print('Max payload size after sync: $maxPayloadSize');
+        // Check that payload sizes were recorded and are reasonable
+        final payloadSizes = metrics1.antiEntropyPayloadSizes;
+        final maxPayloadSize = payloadSizes.isNotEmpty ? payloadSizes.reduce((a, b) => a > b ? a : b) : 0;
+        print('Max payload size observed: $maxPayloadSize');
+        print('Total payload size records: ${payloadSizes.length}');
         
         expect(result.success, isTrue, reason: 'Sync should succeed with automatic batching');
         expect(result.keysSynced, greaterThan(0), reason: 'Should sync some keys');
@@ -281,7 +283,6 @@ void main() {
         print('Unexpected sync failure: ${e.runtimeType} - $e');
         fail('Sync should succeed with automatic batching, but got: $e');
       }
-    });
     });
 
     test('empty trees sync successfully with no key exchanges', () async {
