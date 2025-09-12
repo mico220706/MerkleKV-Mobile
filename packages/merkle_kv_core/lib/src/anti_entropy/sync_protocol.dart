@@ -369,7 +369,7 @@ abstract class AntiEntropyProtocol {
   Future<void> handleSyncKeysRequest(SyncKeysRequest request);
   
   /// Configure rate limiting
-  void configureRateLimit({double? requestsPerSecond});
+  void configureRateLimit({double? requestsPerSecond, int? bucketCapacity});
   
   /// Dispose resources
   void dispose();
@@ -826,9 +826,12 @@ class AntiEntropyProtocolImpl implements AntiEntropyProtocol {
   }
 
   @override
-  void configureRateLimit({double? requestsPerSecond}) {
+  void configureRateLimit({double? requestsPerSecond, int? bucketCapacity}) {
     if (requestsPerSecond != null) {
-      _rateLimiter = RateLimiter(requestsPerSecond: requestsPerSecond);
+      _rateLimiter = RateLimiter(
+        requestsPerSecond: requestsPerSecond,
+        bucketCapacity: bucketCapacity,
+      );
     }
   }
 

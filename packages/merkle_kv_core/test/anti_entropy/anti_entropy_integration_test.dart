@@ -203,54 +203,93 @@ void main() {
     });
 
     test('rate limiting blocks excessive sync requests', () async {
-      protocol1.configureRateLimit(requestsPerSecond: 1.0);
+      // Configure rate limiting with bucket capacity of 1 to ensure immediate rate limiting
+      protocol1.configureRateLimit(requestsPerSecond: 1.0, bucketCapacity: 1);
 
-      // First request should start
+      // First request should succeed (consumes the only token)
+      print('Starting first sync request...');
       final future1 = protocol1.performSync('node2');
 
-      // Small delay to ensure first request is processed
+      // Wait a bit for the first request to start
       await Future.delayed(Duration(milliseconds: 10));
+      print('Rate limit hits after first request: ${metrics1.antiEntropyRateLimitHits}');
 
-      // Immediate second request should be rate limited
+      // Second request should be rate limited immediately (no tokens left)
       bool rateLimitCaught = false;
+      String? actualException;
       try {
+        print('Starting second sync request (should be rate limited)...');
         await protocol1.performSync('node2');
+        print('Second request completed unexpectedly - no rate limiting occurred');
       } catch (e) {
+        print('Caught exception: ${e.runtimeType} - $e');
+        actualException = e.toString();
         if (e is SyncException && e.code == SyncErrorCode.rateLimited) {
           rateLimitCaught = true;
+          print('Rate limiting worked correctly!');
         }
       }
       
-      expect(rateLimitCaught, isTrue, reason: 'Expected rate limiting SyncException');
+      print('Rate limit hits after second request: ${metrics1.antiEntropyRateLimitHits}');
+      print('rateLimitCaught: $rateLimitCaught');
+      print('actualException: $actualException');
+      
+      expect(rateLimitCaught, isTrue, reason: 'Expected rate limiting SyncException. Actual exception: $actualException');
       expect(metrics1.antiEntropyRateLimitHits, equals(1));
 
       // Cleanup first request
-      try { await future1; } catch (_) {}
+      try { 
+        print('Waiting for first request to complete...');
+        await future1; 
+        print('First request completed');
+      } catch (e) {
+        print('First request failed: $e');
+      }
     });
 
     test('payload size validation rejects oversized SYNC_KEYS', () async {
-      // Create multiple keys that together exceed the 512KB anti-entropy payload limit
-      // Each individual value must be under 256KB to fit in storage
-      for (int i = 0; i < 10; i++) {
-        final value = 'x' * (100 * 1024); // 100KB each = 1MB total > 512KB limit
-        await storage1.put('large_key_$i', StorageEntry.value(
-          key: 'large_key_$i', value: value, timestampMs: 1000, nodeId: 'node1', seq: i + 1,
+      // Create entries that are exactly at the storage limit (256KB each)
+      // but when combined with metadata exceed the 512KB anti-entropy limit
+      print('Creating payload entries at storage limit...');
+      
+      // Create 3 entries of 256KB each = 768KB raw data
+      // With JSON overhead and metadata, this should definitely exceed 512KB
+      for (int i = 0; i < 3; i++) {
+        final value = 'x' * (256 * 1024 - 100); // 256KB minus some buffer for metadata
+        await storage1.put('max_key_$i', StorageEntry.value(
+          key: 'max_key_$i', value: value, timestampMs: 1000 + i, nodeId: 'node1', seq: i + 1,
         ));
+        print('Added max_key_$i with ${value.length} bytes');
       }
 
       await merkleTree1.rebuildFromStorage();
+      print('Merkle tree rebuilt with large entries');
+      
+      final hash1 = await merkleTree1.getRootHash();
+      final hash2 = await merkleTree2.getRootHash();
+      print('Hash1: $hash1, Hash2: $hash2');
 
-      // This should fail due to total payload size when serializing all keys
+      // This should fail due to total payload size exceeding 512KB when all entries are serialized
       bool payloadTooLargeCaught = false;
+      String? actualException;
       try {
+        print('Starting sync with large payload (should fail)...');
         await protocol1.performSync('node2');
+        print('Sync completed unexpectedly - no payload size validation occurred');
       } catch (e) {
+        print('Caught exception: ${e.runtimeType} - $e');
+        actualException = e.toString();
         if (e is SyncException && e.code == SyncErrorCode.payloadTooLarge) {
           payloadTooLargeCaught = true;
+          print('Payload size validation worked correctly!');
         }
       }
       
-      expect(payloadTooLargeCaught, isTrue, reason: 'Expected payload too large SyncException');
+      print('payloadTooLargeCaught: $payloadTooLargeCaught');
+      print('actualException: $actualException');
+      
+      expect(payloadTooLargeCaught, isTrue, reason: 'Expected payload too large SyncException. Actual exception: $actualException');
+    });
     });
 
     test('empty trees sync successfully with no key exchanges', () async {
