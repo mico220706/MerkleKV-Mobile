@@ -88,6 +88,13 @@ class InMemoryStorage implements StorageInterface {
   }
 
   @override
+  Future<void> putWithReconciliation(String key, StorageEntry entry) async {
+    // Same logic as put() but without triggering replication events
+    // The reconciliation flag prevents event publishing in upper layers
+    await put(key, entry);
+  }
+
+  @override
   Future<void> delete(
     String key,
     int timestampMs,

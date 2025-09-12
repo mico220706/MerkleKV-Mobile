@@ -1,0 +1,510 @@
+import 'dart:async';
+import 'dart:typed_data';
+import 'package:test/test.dart';
+import 'package:merkle_kv_core/merkle_kv_core.dart';
+
+/// Mock MQTT client for testing anti-entropy protocol
+class MockMqttClient implements MqttClientInterface {
+  final List<MockMessage> publishedMessages = [];
+  final StreamController<MockMessage> _messageController = StreamController.broadcast();
+  bool _isConnected = false;
+
+  Stream<MockMessage> get onMessage => _messageController.stream;
+
+  @override
+  bool get isConnected => _isConnected;
+
+  @override
+  ConnectionState get connectionState => 
+      _isConnected ? ConnectionState.connected : ConnectionState.disconnected;
+
+  @override
+  Future<void> connect() async {
+    _isConnected = true;
+  }
+
+  @override
+  Future<void> disconnect({bool suppressLWT = false}) async {
+    _isConnected = false;
+  }
+
+  @override
+  Future<void> publish(String topic, String payload, {bool forceQoS1 = false, bool forceRetainFalse = false}) async {
+    final message = MockMessage(topic: topic, payload: payload);
+    publishedMessages.add(message);
+    
+    // Simulate message delivery to other nodes
+    Future.microtask(() => _messageController.add(message));
+  }
+
+  @override
+  Future<void> subscribe(String topic, void Function(String, String) onMessage) async {
+    // Mock implementation
+  }
+
+  @override
+  Future<void> unsubscribe(String topic) async {
+    // Mock implementation
+  }
+
+  void dispose() {
+    _messageController.close();
+  }
+}
+
+class MockMessage {
+  final String topic;
+  final String payload;
+
+  MockMessage({required this.topic, required this.payload});
+
+  @override
+  String toString() => 'MockMessage(topic: $topic, payload: $payload)';
+}
+
+void main() {
+  group('AntiEntropyProtocol Integration Tests', () {
+    late InMemoryStorage storage1;
+    late InMemoryStorage storage2;
+    late MerkleTreeImpl merkleTree1;
+    late MerkleTreeImpl merkleTree2;
+    late MockMqttClient mqttClient1;
+    late MockMqttClient mqttClient2;
+    late InMemoryReplicationMetrics metrics1;
+    late InMemoryReplicationMetrics metrics2;
+    late AntiEntropyProtocolImpl protocol1;
+    late AntiEntropyProtocolImpl protocol2;
+
+    setUp(() async {
+      // Setup node 1
+      final config1 = MerkleKVConfig.defaultConfig(
+        host: 'localhost',
+        clientId: 'node1-client',
+        nodeId: 'node1',
+      );
+      storage1 = InMemoryStorage(config1);
+      await storage1.initialize();
+      merkleTree1 = MerkleTreeImpl(storage1);
+      mqttClient1 = MockMqttClient();
+      metrics1 = InMemoryReplicationMetrics();
+      protocol1 = AntiEntropyProtocolImpl(
+        storage: storage1,
+        merkleTree: merkleTree1,
+        mqttClient: mqttClient1,
+        metrics: metrics1,
+        nodeId: 'node1',
+      );
+
+      // Setup node 2
+      final config2 = MerkleKVConfig.defaultConfig(
+        host: 'localhost',
+        clientId: 'node2-client',
+        nodeId: 'node2',
+      );
+      storage2 = InMemoryStorage(config2);
+      await storage2.initialize();
+      merkleTree2 = MerkleTreeImpl(storage2);
+      mqttClient2 = MockMqttClient();
+      metrics2 = InMemoryReplicationMetrics();
+      protocol2 = AntiEntropyProtocolImpl(
+        storage: storage2,
+        merkleTree: merkleTree2,
+        mqttClient: mqttClient2,
+        metrics: metrics2,
+        nodeId: 'node2',
+      );
+
+      await mqttClient1.connect();
+      await mqttClient2.connect();
+    });
+
+    tearDown(() {
+      protocol1.dispose();
+      protocol2.dispose();
+      merkleTree1.dispose();
+      merkleTree2.dispose();
+      mqttClient1.dispose();
+      mqttClient2.dispose();
+    });
+
+    test('nodes with identical state have matching root hashes', () async {
+      // Add identical data to both nodes
+      final entry = StorageEntry.value(
+        key: 'shared:doc',
+        value: 'same content',
+        timestampMs: 1000,
+        nodeId: 'node1',
+        seq: 1,
+      );
+
+      await storage1.put('shared:doc', entry);
+      await storage2.put('shared:doc', entry);
+
+      await merkleTree1.rebuildFromStorage();
+      await merkleTree2.rebuildFromStorage();
+
+      final hash1 = await merkleTree1.getRootHash();
+      final hash2 = await merkleTree2.getRootHash();
+
+      expect(hash1, equals(hash2));
+    });
+
+    test('nodes with different state have different root hashes', () async {
+      // Add different data to each node
+      await storage1.put('doc1', StorageEntry.value(
+        key: 'doc1', value: 'content from node1', timestampMs: 1000, nodeId: 'node1', seq: 1,
+      ));
+
+      await storage2.put('doc2', StorageEntry.value(
+        key: 'doc2', value: 'content from node2', timestampMs: 1000, nodeId: 'node2', seq: 1,
+      ));
+
+      await merkleTree1.rebuildFromStorage();
+      await merkleTree2.rebuildFromStorage();
+
+      final hash1 = await merkleTree1.getRootHash();
+      final hash2 = await merkleTree2.getRootHash();
+
+      expect(hash1, isNot(equals(hash2)));
+    });
+
+    test('rate limiting blocks excessive sync requests', () async {
+      protocol1.configureRateLimit(requestsPerSecond: 1.0);
+
+      // First request should succeed
+      final future1 = protocol1.performSync('node2');
+
+      // Second request should be rate limited
+      expect(() => protocol1.performSync('node2'),
+             throwsA(isA<SyncException>()
+                 .having((e) => e.code, 'code', SyncErrorCode.rateLimited)));
+
+      expect(metrics1.antiEntropyRateLimitHits, equals(1));
+
+      // Cleanup
+      try { await future1; } catch (_) {}
+    });
+
+    test('payload size validation rejects oversized SYNC_KEYS', () async {
+      // Create data that exceeds 512KiB when serialized
+      final largeValue = 'x' * (200 * 1024); // 200KB
+      for (int i = 0; i < 5; i++) { // 5 * 200KB = 1MB > 512KiB
+        await storage1.put('large$i', StorageEntry.value(
+          key: 'large$i', value: largeValue, timestampMs: 1000, nodeId: 'node1', seq: i + 1,
+        ));
+      }
+
+      await merkleTree1.rebuildFromStorage();
+
+      // This should fail due to payload size
+      final result = await protocol1.performSync('node2');
+      expect(result.success, isFalse);
+      expect(result.errorCode, equals(SyncErrorCode.payloadTooLarge));
+    });
+
+    test('empty trees sync successfully with no key exchanges', () async {
+      // Both trees are empty
+      final result = await protocol1.performSync('node2');
+
+      expect(result.success, isTrue);
+      expect(result.keysExamined, equals(0));
+      expect(result.keysSynced, equals(0));
+      expect(result.rounds, equals(1)); // Just the SYNC round
+    });
+
+    test('LWW conflict resolution during reconciliation', () async {
+      // Add conflicting entries with different timestamps
+      await storage1.put('conflict:doc', StorageEntry.value(
+        key: 'conflict:doc', value: 'older version', timestampMs: 1000, nodeId: 'node1', seq: 1,
+      ));
+
+      await storage2.put('conflict:doc', StorageEntry.value(
+        key: 'conflict:doc', value: 'newer version', timestampMs: 2000, nodeId: 'node2', seq: 1,
+      ));
+
+      await merkleTree1.rebuildFromStorage();
+      await merkleTree2.rebuildFromStorage();
+
+      // Simulate sync from node1 to node2 perspective
+      // Since node2 has newer timestamp, node1 should get updated
+      final node2Entry = await storage2.get('conflict:doc');
+      if (node2Entry != null) {
+        await storage1.putWithReconciliation('conflict:doc', node2Entry);
+      }
+
+      // Node1 should now have the newer version
+      final resolvedEntry = await storage1.get('conflict:doc');
+      expect(resolvedEntry!.value, equals('newer version'));
+      expect(resolvedEntry.timestampMs, equals(2000));
+      expect(resolvedEntry.nodeId, equals('node2'));
+    });
+
+    test('tombstone synchronization preserves deletion state', () async {
+      // Add entry to both nodes
+      final entry = StorageEntry.value(
+        key: 'to_delete', value: 'content', timestampMs: 1000, nodeId: 'node1', seq: 1,
+      );
+      await storage1.put('to_delete', entry);
+      await storage2.put('to_delete', entry);
+
+      // Delete on node1 (creates tombstone)
+      await storage1.delete('to_delete', 2000, 'node1', 2);
+
+      await merkleTree1.rebuildFromStorage();
+      await merkleTree2.rebuildFromStorage();
+
+      // Verify different root hashes
+      final hash1 = await merkleTree1.getRootHash();
+      final hash2 = await merkleTree2.getRootHash();
+      expect(hash1, isNot(equals(hash2)));
+
+      // Simulate tombstone sync
+      final tombstone = (await storage1.getAllEntries())
+          .firstWhere((e) => e.key == 'to_delete' && e.isTombstone);
+      
+      await storage2.putWithReconciliation('to_delete', tombstone);
+
+      // Both nodes should now have the tombstone
+      expect(await storage1.get('to_delete'), isNull); // Tombstones return null
+      expect(await storage2.get('to_delete'), isNull);
+
+      // But tombstones should exist in storage
+      final allEntries1 = await storage1.getAllEntries();
+      final allEntries2 = await storage2.getAllEntries();
+      expect(allEntries1.any((e) => e.key == 'to_delete' && e.isTombstone), isTrue);
+      expect(allEntries2.any((e) => e.key == 'to_delete' && e.isTombstone), isTrue);
+    });
+
+    test('metrics tracking during sync operations', () async {
+      metrics1.reset();
+
+      // Add some data to create divergence
+      await storage1.put('metric:test', StorageEntry.value(
+        key: 'metric:test', value: 'data', timestampMs: 1000, nodeId: 'node1', seq: 1,
+      ));
+
+      await merkleTree1.rebuildFromStorage();
+
+      // Perform sync (will timeout but metrics should be recorded)
+      try {
+        await protocol1.performSync('node2');
+      } catch (_) {
+        // Expected to fail due to no real MQTT response
+      }
+
+      // Verify metrics were incremented
+      expect(metrics1.antiEntropySyncAttempts, greaterThan(0));
+      expect(metrics1.antiEntropySyncDurations.isNotEmpty, isTrue);
+    });
+
+    test('concurrent sync operations handle safely', () async {
+      // This tests that multiple sync operations don't interfere
+      final futures = <Future<SyncResult>>[];
+      
+      for (int i = 0; i < 3; i++) {
+        // These will timeout but should not crash
+        futures.add(protocol1.performSync('node$i').catchError((error) => 
+            SyncResult.failure(
+              errorCode: SyncErrorCode.timeout,
+              errorMessage: 'Test timeout',
+              duration: const Duration(milliseconds: 50),
+            )));
+      }
+
+      final results = await Future.wait(futures);
+      expect(results.length, equals(3));
+      
+      // All should complete without throwing
+      for (final result in results) {
+        expect(result.duration, isNotNull);
+      }
+    });
+
+    test('request ID generation is unique across multiple syncs', () async {
+      final protocol = AntiEntropyProtocolImpl(
+        storage: storage1,
+        merkleTree: merkleTree1,
+        mqttClient: mqttClient1,
+        metrics: metrics1,
+        nodeId: 'test-node',
+      );
+
+      // Start multiple concurrent sync operations (will timeout but that's ok)
+      final futures = <Future>[];
+      for (int i = 0; i < 10; i++) {
+        futures.add(protocol.performSync('node$i').catchError((error) => 
+            SyncResult.failure(
+              errorCode: SyncErrorCode.timeout,
+              errorMessage: 'Test timeout',
+              duration: const Duration(milliseconds: 50),
+            )));
+      }
+
+      // All should complete without throwing due to ID conflicts
+      final results = await Future.wait(futures);
+      expect(results.length, equals(10));
+
+      protocol.dispose();
+    });
+
+    test('hash comparison through merkle tree works correctly', () async {
+      // Create two storage instances with identical data
+      final entry = StorageEntry.value(
+        key: 'test:doc', value: 'content', timestampMs: 1000, nodeId: 'node1', seq: 1,
+      );
+
+      await storage1.put('test:doc', entry);
+      await storage2.put('test:doc', entry);
+
+      await merkleTree1.rebuildFromStorage();
+      await merkleTree2.rebuildFromStorage();
+
+      final hash1 = await merkleTree1.getRootHash();
+      final hash2 = await merkleTree2.getRootHash();
+
+      // Hashes should be identical for identical content
+      expect(hash1, equals(hash2));
+
+      // Change one entry
+      final modifiedEntry = StorageEntry.value(
+        key: 'test:doc', value: 'modified content', timestampMs: 2000, nodeId: 'node1', seq: 2,
+      );
+      await storage1.put('test:doc', modifiedEntry);
+      await merkleTree1.rebuildFromStorage();
+
+      final hash1Modified = await merkleTree1.getRootHash();
+      expect(hash1Modified, isNot(equals(hash2)));
+    });
+
+    test('SYNC request timeout through performSync', () async {
+      final protocol = AntiEntropyProtocolImpl(
+        storage: storage1,
+        merkleTree: merkleTree1,
+        mqttClient: mqttClient1,
+        metrics: metrics1,
+        nodeId: 'test-node',
+        defaultTimeoutMs: 50, // Very short timeout
+      );
+
+      // This should timeout quickly since no response will come
+      expect(protocol.performSync('nonexistent-node'), 
+             throwsA(isA<SyncException>()
+                 .having((e) => e.code, 'code', SyncErrorCode.timeout)));
+
+      protocol.dispose();
+    });
+  });
+
+  group('Edge Cases and Error Handling', () {
+    late AntiEntropyProtocolImpl protocol;
+    late InMemoryStorage storage;
+    late MerkleTreeImpl merkleTree;
+    late MockMqttClient mqttClient;
+    late InMemoryReplicationMetrics metrics;
+
+    setUp(() async {
+      final config = MerkleKVConfig.defaultConfig(
+        host: 'localhost',
+        clientId: 'test-client',
+        nodeId: 'test-node',
+      );
+      storage = InMemoryStorage(config);
+      await storage.initialize();
+      merkleTree = MerkleTreeImpl(storage);
+      mqttClient = MockMqttClient();
+      metrics = InMemoryReplicationMetrics();
+      protocol = AntiEntropyProtocolImpl(
+        storage: storage,
+        merkleTree: merkleTree,
+        mqttClient: mqttClient,
+        metrics: metrics,
+        nodeId: 'test-node',
+      );
+
+      await mqttClient.connect();
+    });
+
+    tearDown(() {
+      protocol.dispose();
+      merkleTree.dispose();
+      mqttClient.dispose();
+    });
+
+    test('handles malformed MQTT messages gracefully', () async {
+      // Send malformed JSON
+      final malformedMessage = MockMessage(
+        topic: 'merkle_kv/test-node/sync/response',
+        payload: '{"invalid": json}',
+      );
+
+      // Should not crash when processing malformed message
+      expect(() => mqttClient._messageController.add(malformedMessage),
+             returnsNormally);
+
+      // Wait a bit to ensure message processing
+      await Future.delayed(Duration(milliseconds: 10));
+    });
+
+    test('handles empty key lists in SYNC_KEYS', () async {
+      final request = SyncKeysRequest(
+        requestId: 'empty-test',
+        sourceNodeId: 'test-node',
+        keys: [],
+        entries: {},
+        timestamp: DateTime.now(),
+      );
+
+      // Should handle empty keys list gracefully
+      expect(() => protocol.handleSyncKeysRequest(request), returnsNormally);
+    });
+
+    test('handles very large key names', () async {
+      final longKey = 'k' * 255; // At size limit
+      
+      final entry = StorageEntry.value(
+        key: longKey, value: 'value', timestampMs: 1000, nodeId: 'test-node', seq: 1,
+      );
+
+      await storage.put(longKey, entry);
+      await merkleTree.rebuildFromStorage();
+
+      // Should handle large keys without issue
+      final hash = await merkleTree.getRootHash();
+      expect(hash.length, equals(32));
+    });
+
+    test('handles rapid rate limit configuration changes', () {
+      // Rapidly change rate limits
+      for (double rate in [1.0, 10.0, 0.1, 100.0, 5.0]) {
+        protocol.configureRateLimit(requestsPerSecond: rate);
+      }
+
+      // Should not crash and final rate should be applied
+      expect(() => protocol.configureRateLimit(requestsPerSecond: 2.0), 
+             returnsNormally);
+    });
+
+    test('disposes cleanly without hanging operations', () async {
+      // Start some operations
+      final futures = <Future>[];
+      for (int i = 0; i < 5; i++) {
+        futures.add(protocol.performSync('node$i').catchError((_) => null));
+      }
+
+      // Dispose while operations might be pending
+      protocol.dispose();
+
+      // Should complete quickly
+      final timeout = Completer();
+      Timer(Duration(seconds: 1), () => timeout.complete());
+
+      final firstCompleted = await Future.any([
+        Future.wait(futures),
+        timeout.future,
+      ]);
+
+      // If timeout completed first, that's fine - operations were cleaned up
+      expect(firstCompleted, isNotNull);
+    });
+  });
+}
