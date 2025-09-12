@@ -48,7 +48,7 @@ await client.delete('user:123');
 | Topic | Description | Link |
 |-------|-------------|------|
 | **Getting Started** | Installation, basic usage, examples | [→ Tutorial](docs/TUTORIAL.md) |
-| **Multi-Tenant Setup** | Topic validation, ACL configuration | [→ Multi-Tenant Guide](packages/merkle_kv_core/README_TOPIC_VALIDATION.md) |
+| **Multi-Tenant Setup** | Topic validation, configuration examples | [→ API Docs](packages/merkle_kv_core/README.md#multi-tenant-configuration) |
 | **Architecture** | System design, protocols, components | [→ Architecture](docs/architecture.md) |
 | **API Reference** | Complete API documentation | [→ API Docs](packages/merkle_kv_core/README.md) |
 | **Deployment** | Production setup, MQTT broker config | [→ Deployment Guide](docs/DEPLOYMENT.md) |
