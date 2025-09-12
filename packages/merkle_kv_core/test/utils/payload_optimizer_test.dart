@@ -108,6 +108,34 @@ class TestReplicationMetrics implements ReplicationMetrics {
   
   @override
   void recordSizeEstimationAccuracy(int estimatedBytes, int actualBytes) {}
+  
+  // Anti-entropy protocol metrics
+  @override
+  void incrementAntiEntropySyncAttempts() {}
+
+  @override
+  void incrementAntiEntropySyncSuccess() {}
+
+  @override
+  void recordAntiEntropyKeysSynced(int count) {}
+
+  @override
+  void recordAntiEntropySyncDuration(int microseconds) {}
+
+  @override
+  void recordAntiEntropyPayloadSize(int bytes) {}
+
+  @override
+  void incrementAntiEntropyRateLimitHits() {}
+
+  @override
+  void recordAntiEntropyDivergentKeysFound(int count) {}
+
+  @override
+  void incrementAntiEntropyConvergenceRounds() {}
+  
+  @override
+  void incrementAntiEntropyErrors() {}
 }
 
 void main() {

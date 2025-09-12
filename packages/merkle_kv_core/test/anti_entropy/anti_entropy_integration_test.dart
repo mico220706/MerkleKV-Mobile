@@ -212,14 +212,16 @@ void main() {
       await Future.delayed(Duration(milliseconds: 10));
 
       // Immediate second request should be rate limited
+      bool rateLimitCaught = false;
       try {
         await protocol1.performSync('node2');
-        fail('Expected rate limiting exception');
       } catch (e) {
-        expect(e, isA<SyncException>());
-        expect((e as SyncException).code, equals(SyncErrorCode.rateLimited));
+        if (e is SyncException && e.code == SyncErrorCode.rateLimited) {
+          rateLimitCaught = true;
+        }
       }
-
+      
+      expect(rateLimitCaught, isTrue, reason: 'Expected rate limiting SyncException');
       expect(metrics1.antiEntropyRateLimitHits, equals(1));
 
       // Cleanup first request
@@ -227,22 +229,28 @@ void main() {
     });
 
     test('payload size validation rejects oversized SYNC_KEYS', () async {
-      // Create a single key with data that exceeds 512KiB when serialized
-      final largeValue = 'x' * (600 * 1024); // 600KB > 512KiB limit even after JSON overhead
-      await storage1.put('large_key', StorageEntry.value(
-        key: 'large_key', value: largeValue, timestampMs: 1000, nodeId: 'node1', seq: 1,
-      ));
+      // Create multiple keys that together exceed the 512KB anti-entropy payload limit
+      // Each individual value must be under 256KB to fit in storage
+      for (int i = 0; i < 10; i++) {
+        final value = 'x' * (100 * 1024); // 100KB each = 1MB total > 512KB limit
+        await storage1.put('large_key_$i', StorageEntry.value(
+          key: 'large_key_$i', value: value, timestampMs: 1000, nodeId: 'node1', seq: i + 1,
+        ));
+      }
 
       await merkleTree1.rebuildFromStorage();
 
-      // This should fail due to payload size
+      // This should fail due to total payload size when serializing all keys
+      bool payloadTooLargeCaught = false;
       try {
         await protocol1.performSync('node2');
-        fail('Expected payload too large exception');
       } catch (e) {
-        expect(e, isA<SyncException>());
-        expect((e as SyncException).code, equals(SyncErrorCode.payloadTooLarge));
+        if (e is SyncException && e.code == SyncErrorCode.payloadTooLarge) {
+          payloadTooLargeCaught = true;
+        }
       }
+      
+      expect(payloadTooLargeCaught, isTrue, reason: 'Expected payload too large SyncException');
     });
 
     test('empty trees sync successfully with no key exchanges', () async {
