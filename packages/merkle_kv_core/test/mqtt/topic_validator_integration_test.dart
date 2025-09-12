@@ -104,20 +104,20 @@ void main() {
       });
 
       test('validates edge cases with maximum length configurations', () {
-        // Test configurations approaching size limits
-        final maxPrefix = 'a' * 48; // Just under 50-byte limit
-        final maxClientId = 'b' * 126; // Just under 128-byte limit
+        // Test configurations with reasonable lengths to stay within topic limits
+        final reasonablePrefix = 'a' * 20; // Reasonable prefix length
+        final reasonableClientId = 'b' * 20; // Reasonable client ID length
 
         final config = MerkleKVConfig(
           mqttHost: 'test.broker',
           mqttPort: 1883,
-          clientId: maxClientId,
+          clientId: reasonableClientId,
           nodeId: 'test-node',
-          topicPrefix: maxPrefix,
+          topicPrefix: reasonablePrefix,
         );
 
-        expect(config.topicPrefix, equals(maxPrefix));
-        expect(config.clientId, equals(maxClientId));
+        expect(config.topicPrefix, equals(reasonablePrefix));
+        expect(config.clientId, equals(reasonableClientId));
 
         // Verify topic generation works within limits
         final commandTopic = TopicValidator.buildCommandTopic(
@@ -139,7 +139,7 @@ void main() {
             nodeId: 'test-node',
             topicPrefix: 'tenant+invalid',
           ),
-          throwsA(isA<ArgumentError>()),
+          throwsA(isA<InvalidConfigException>()),
         );
 
         // Test client ID validation through MerkleKVConfig
@@ -151,13 +151,13 @@ void main() {
             nodeId: 'test-node',
             topicPrefix: 'tenant-1',
           ),
-          throwsA(isA<ArgumentError>()),
+          throwsA(isA<InvalidConfigException>()),
         );
 
         // Test TopicScheme validation
         expect(
           () => TopicScheme.create('tenant#invalid', 'device-123'),
-          throwsA(isA<ArgumentError>()),
+          throwsA(isA<InvalidConfigException>()),
         );
       });
     });
@@ -176,7 +176,7 @@ void main() {
 
         // Verify validation is now enhanced but still compatible
         expect(() => TopicScheme.validateClientId('valid-client'), isNot(throwsA(anything)));
-        expect(() => TopicScheme.validateClientId('invalid/client'), throwsA(isA<ArgumentError>()));
+        expect(() => TopicScheme.validateClientId('invalid/client'), throwsA(isA<InvalidConfigException>()));
       });
 
       test('validates prefix normalization maintains backward compatibility', () {

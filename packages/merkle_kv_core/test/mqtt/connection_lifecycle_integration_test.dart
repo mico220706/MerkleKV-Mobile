@@ -19,25 +19,6 @@ class IntegrationTestTimings {
   static const averageConnectionTimeLimit = 3000; // milliseconds
   static const maxSingleConnectionTime = 10000; // milliseconds
 }
-import 'dart:io';
-import 'package:test/test.dart';
-
-import '../../lib/src/config/merkle_kv_config.dart';
-import '../../lib/src/mqtt/connection_lifecycle.dart';
-import '../../lib/src/mqtt/connection_state.dart';
-import '../../lib/src/mqtt/mqtt_client_impl.dart';
-import '../../lib/src/replication/metrics.dart';
-
-// Integration test timing constants
-class IntegrationTestTimings {
-  static const brokerConnectTimeout = Duration(seconds: 5);
-  static const stateUpdateDelay = Duration(milliseconds: 50);
-  static const disconnectionDelay = Duration(milliseconds: 100);
-  static const stabilityWait = Duration(seconds: 2);
-  static const briefDelay = Duration(milliseconds: 100);
-  static const maxConnectionTime = Duration(seconds: 5);
-  static const veryLongConnectionTime = Duration(seconds: 10);
-}
 
 /// Integration tests for ConnectionLifecycleManager with real MQTT broker.
 /// 
