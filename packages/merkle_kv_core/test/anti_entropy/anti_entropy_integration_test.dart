@@ -208,6 +208,9 @@ void main() {
       // First request should start
       final future1 = protocol1.performSync('node2');
 
+      // Small delay to ensure first request is processed
+      await Future.delayed(Duration(milliseconds: 10));
+
       // Immediate second request should be rate limited
       try {
         await protocol1.performSync('node2');
@@ -224,13 +227,11 @@ void main() {
     });
 
     test('payload size validation rejects oversized SYNC_KEYS', () async {
-      // Create data that exceeds 512KiB when serialized
-      final largeValue = 'x' * (200 * 1024); // 200KB
-      for (int i = 0; i < 5; i++) { // 5 * 200KB = 1MB > 512KiB
-        await storage1.put('large$i', StorageEntry.value(
-          key: 'large$i', value: largeValue, timestampMs: 1000, nodeId: 'node1', seq: i + 1,
-        ));
-      }
+      // Create a single key with data that exceeds 512KiB when serialized
+      final largeValue = 'x' * (600 * 1024); // 600KB > 512KiB limit even after JSON overhead
+      await storage1.put('large_key', StorageEntry.value(
+        key: 'large_key', value: largeValue, timestampMs: 1000, nodeId: 'node1', seq: 1,
+      ));
 
       await merkleTree1.rebuildFromStorage();
 
