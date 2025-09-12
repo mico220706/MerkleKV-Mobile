@@ -5,7 +5,6 @@ import 'package:merkle_kv_core/src/commands/response.dart';
 import 'package:merkle_kv_core/src/config/merkle_kv_config.dart';
 import 'package:merkle_kv_core/src/storage/storage_interface.dart';
 import 'package:merkle_kv_core/src/storage/storage_entry.dart';
-import 'package:merkle_kv_core/src/models/key_value_result.dart';
 
 /// Mock storage implementation for testing.
 class MockStorage implements StorageInterface {
@@ -22,6 +21,12 @@ class MockStorage implements StorageInterface {
 
   @override
   Future<void> put(String key, StorageEntry entry) async {
+    _entries[key] = entry;
+  }
+
+  @override
+  Future<void> putWithReconciliation(String key, StorageEntry entry) async {
+    // Same logic as put for testing
     _entries[key] = entry;
   }
 

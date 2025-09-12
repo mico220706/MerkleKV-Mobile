@@ -810,7 +810,7 @@ flutter test
 1. **Clone and Bootstrap the Project**:
 
    ```bash
-   git clone https://github.com/mico220706/MerkleKV-Mobile.git
+   git clone https://github.com/AI-Decenter/MerkleKV-Mobile.git
    cd MerkleKV-Mobile
    
    # Install Melos for monorepo management
@@ -1026,8 +1026,8 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## 🙋‍♂️ Support
 
 - 📖 **Documentation**: [docs/](docs/)
-- 🐛 **Bug Reports**: [GitHub Issues](https://github.com/mico220706/MerkleKV-Mobile/issues)
-- 💡 **Feature Requests**: [GitHub Discussions](https://github.com/mico220706/MerkleKV-Mobile/discussions)
+- 🐛 **Bug Reports**: [GitHub Issues](https://github.com/AI-Decenter/MerkleKV-Mobile/issues)
+- 💡 **Feature Requests**: [GitHub Discussions](https://github.com/AI-Decenter/MerkleKV-Mobile/discussions)
 - 🔒 **Security Issues**: See [SECURITY.md](SECURITY.md)
 
 ---

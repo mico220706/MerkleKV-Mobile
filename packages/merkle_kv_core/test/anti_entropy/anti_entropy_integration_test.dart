@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:typed_data';
 import 'package:test/test.dart';
 import 'package:merkle_kv_core/merkle_kv_core.dart';
 
@@ -7,25 +6,27 @@ import 'package:merkle_kv_core/merkle_kv_core.dart';
 class MockMqttClient implements MqttClientInterface {
   final List<MockMessage> publishedMessages = [];
   final StreamController<MockMessage> _messageController = StreamController.broadcast();
+  final StreamController<ConnectionState> _connectionStateController = StreamController.broadcast();
   bool _isConnected = false;
 
-  Stream<MockMessage> get onMessage => _messageController.stream;
+    Stream<MockMessage> get onMessage => _messageController.stream;
 
   @override
   bool get isConnected => _isConnected;
 
   @override
-  ConnectionState get connectionState => 
-      _isConnected ? ConnectionState.connected : ConnectionState.disconnected;
+  Stream<ConnectionState> get connectionState => _connectionStateController.stream;
 
   @override
   Future<void> connect() async {
     _isConnected = true;
+    _connectionStateController.add(ConnectionState.connected);
   }
 
   @override
   Future<void> disconnect({bool suppressLWT = false}) async {
     _isConnected = false;
+    _connectionStateController.add(ConnectionState.disconnected);
   }
 
   @override
@@ -49,6 +50,7 @@ class MockMqttClient implements MqttClientInterface {
 
   void dispose() {
     _messageController.close();
+    _connectionStateController.close();
   }
 }
 
@@ -488,7 +490,12 @@ void main() {
       // Start some operations
       final futures = <Future>[];
       for (int i = 0; i < 5; i++) {
-        futures.add(protocol.performSync('node$i').catchError((_) => null));
+        futures.add(protocol.performSync('node$i').catchError((_) => 
+            SyncResult.failure(
+              errorCode: SyncErrorCode.timeout,
+              errorMessage: 'Test cleanup',
+              duration: const Duration(milliseconds: 1),
+            )));
       }
 
       // Dispose while operations might be pending
