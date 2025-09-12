@@ -35,6 +35,63 @@ class TestReplicationMetrics implements ReplicationMetrics {
   void incrementSequenceGaps() {}
   
   @override
+  void incrementEventsApplied() {}
+  
+  @override
+  void incrementEventsRejected() {}
+  
+  @override
+  void incrementEventsDuplicate() {}
+  
+  @override
+  void incrementConflictsResolved() {}
+  
+  @override
+  void incrementEventsClamped() {}
+  
+  @override
+  void recordApplicationLatency(int milliseconds) {}
+  
+  @override
+  void incrementLWWComparisons() {}
+  
+  @override
+  void incrementLWWLocalWins() {}
+  
+  @override
+  void incrementLWWRemoteWins() {}
+  
+  @override
+  void incrementLWWDuplicates() {}
+  
+  @override
+  void incrementLWWTimestampClamps() {}
+  
+  @override
+  void incrementLWWAnomalies() {}
+  
+  @override
+  void setMerkleTreeDepth(int depth) {}
+  
+  @override
+  void setMerkleTreeLeafCount(int count) {}
+  
+  @override
+  void incrementMerkleRootHashChanges() {}
+  
+  @override
+  void recordMerkleTreeBuildDuration(int microseconds) {}
+  
+  @override
+  void recordMerkleTreeUpdateDuration(int microseconds) {}
+  
+  @override
+  void incrementMerkleHashComputations() {}
+  
+  @override
+  void incrementMerkleHashCacheHits() {}
+  
+  @override
   void recordPayloadOptimization(int originalBytes, int optimizedBytes) {
     optimizationCount++;
     originalTotalSize += originalBytes;

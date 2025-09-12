@@ -184,6 +184,38 @@ class InMemoryReplicationMetrics implements ReplicationMetrics {
   final List<int> _merkleTreeBuildDurations = <int>[];
   final List<int> _merkleTreeUpdateDurations = <int>[];
 
+  // Getters for accessing private fields in tests
+  int get eventsPublished => _eventsPublished;
+  int get publishErrors => _publishErrors;
+  int get outboxSize => _outboxSize;
+  int get currentSequence => _currentSequence;
+  int get sequenceGaps => _sequenceGaps;
+  int get eventsApplied => _eventsApplied;
+  int get eventsRejected => _eventsRejected;
+  int get eventsDuplicate => _eventsDuplicate;
+  int get conflictsResolved => _conflictsResolved;
+  int get eventsClamped => _eventsClamped;
+  int get lwwComparisons => _lwwComparisons;
+  int get lwwLocalWins => _lwwLocalWins;
+  int get lwwRemoteWins => _lwwRemoteWins;
+  int get lwwDuplicates => _lwwDuplicates;
+  int get lwwTimestampClamps => _lwwTimestampClamps;
+  int get lwwAnomalies => _lwwAnomalies;
+  int get merkleTreeDepth => _merkleTreeDepth;
+  int get merkleTreeLeafCount => _merkleTreeLeafCount;
+  int get merkleRootHashChanges => _merkleRootHashChanges;
+  int get merkleHashComputations => _merkleHashComputations;
+  int get merkleHashCacheHits => _merkleHashCacheHits;
+  int get payloadOptimizedOriginalSize => _payloadOptimizedOriginalSize;
+  int get payloadOptimizedReducedSize => _payloadOptimizedReducedSize;
+  double get optimizationEffectiveness => _optimizationEffectiveness;
+  int get sizeLimitExceededCount => _sizeLimitExceededCount;
+  List<int> get publishLatencies => List.unmodifiable(_publishLatencies);
+  List<int> get flushDurations => List.unmodifiable(_flushDurations);
+  List<int> get applicationLatencies => List.unmodifiable(_applicationLatencies);
+  List<int> get merkleTreeBuildDurations => List.unmodifiable(_merkleTreeBuildDurations);
+  List<int> get merkleTreeUpdateDurations => List.unmodifiable(_merkleTreeUpdateDurations);
+
   @override
   void incrementEventsPublished() {
     _eventsPublished++;
