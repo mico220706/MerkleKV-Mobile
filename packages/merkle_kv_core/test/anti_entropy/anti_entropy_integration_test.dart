@@ -33,7 +33,6 @@ class MockMqttClient implements MqttClientInterface {
   final Map<String, void Function(String, String)> _subscriptionHandlers = {};
   bool _isConnected = false;
 
-  @override
   bool get isConnected => _isConnected;
 
   @override
@@ -150,10 +149,6 @@ void main() {
 
       await mqttClient1.connect();
       await mqttClient2.connect();
-      
-      // Initialize protocols after connection
-      await protocol1.initialize();
-      await protocol2.initialize();
     });
 
     tearDown(() {
@@ -428,7 +423,6 @@ void main() {
         nodeId: 'test-node',
         defaultTimeoutMs: 50, // Very short timeout
       );
-      await protocol.initialize();
 
       // This should timeout quickly since no response will come from nonexistent node
       final result = await protocol.performSync('nonexistent-node');
@@ -475,14 +469,12 @@ void main() {
     });
 
     test('handles malformed MQTT messages gracefully', () async {
-      // Send malformed JSON
-      final malformedMessage = MockMessage(
-        topic: 'merkle_kv/test-node/sync/response',
-        payload: '{"invalid": json}',
-      );
+      // Send malformed JSON through broker
+      final malformedTopic = 'merkle_kv/test-node/sync/response';
+      final malformedPayload = '{"invalid": json}';
 
       // Should not crash when processing malformed message
-      expect(() => mqttClient._messageController.add(malformedMessage),
+      expect(() => MockMessageBroker.publish(malformedTopic, malformedPayload),
              returnsNormally);
 
       // Wait a bit to ensure message processing
