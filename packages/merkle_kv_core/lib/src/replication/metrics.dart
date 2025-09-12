@@ -1,5 +1,5 @@
 /// Simple metrics interface for replication event publishing
-/// 
+///
 /// Provides basic counters and gauges for monitoring replication
 /// publishing performance and status.
 abstract class ReplicationMetrics {
@@ -25,67 +25,35 @@ abstract class ReplicationMetrics {
   void incrementSequenceGaps();
 
   // Event application metrics (for issue #14)
-  
-  /// Increment the total number of events applied to storage
-  void incrementEventsApplied() {}
-  
-  /// Increment the total number of events rejected (older, invalid, etc.)
-  void incrementEventsRejected() {}
-  
-  /// Increment the total number of duplicate events detected
-  void incrementEventsDuplicate() {}
-  
-  /// Increment the total number of conflicts resolved via LWW
-  void incrementConflictsResolved() {}
-  
-  /// Increment the total number of events with clamped timestamps
-  void incrementEventsClamped() {}
-  
-  /// Record application latency in milliseconds
-  void recordApplicationLatency(int milliseconds) {}
-  
+  void incrementEventsApplied();
+  void incrementEventsRejected();
+  void incrementEventsDuplicate();
+  void incrementConflictsResolved();
+  void incrementEventsClamped();
+  void recordApplicationLatency(int milliseconds);
+
   // LWW conflict resolution metrics (for issue #15)
-  
-  /// Increment the total number of LWW comparisons performed
-  void incrementLWWComparisons() {}
-  
-  /// Increment the total number of LWW conflicts where local entry wins
-  void incrementLWWLocalWins() {}
-  
-  /// Increment the total number of LWW conflicts where remote entry wins
-  void incrementLWWRemoteWins() {}
-  
-  /// Increment the total number of LWW duplicates detected
-  void incrementLWWDuplicates() {}
-  
-  /// Increment the total number of timestamps clamped due to clock skew
-  void incrementLWWTimestampClamps() {}
-  
-  /// Increment the total number of timestamp anomalies detected (same timestamp + nodeId, different content)
-  void incrementLWWAnomalies() {}
+  void incrementLWWComparisons();
+  void incrementLWWLocalWins();
+  void incrementLWWRemoteWins();
+  void incrementLWWDuplicates();
+  void incrementLWWTimestampClamps();
+  void incrementLWWAnomalies();
 
   // Merkle tree metrics (for issue #16)
-  
-  /// Set the current Merkle tree depth
-  void setMerkleTreeDepth(int depth) {}
-  
-  /// Set the current number of leaf nodes in the Merkle tree
-  void setMerkleTreeLeafCount(int count) {}
-  
-  /// Increment the total number of root hash changes
-  void incrementMerkleRootHashChanges() {}
-  
-  /// Record Merkle tree build duration in microseconds (minimum 1µs)
-  void recordMerkleTreeBuildDuration(int microseconds) {}
-  
-  /// Record Merkle tree update duration in microseconds
-  void recordMerkleTreeUpdateDuration(int microseconds) {}
-  
-  /// Increment the total number of hash computations performed
-  void incrementMerkleHashComputations() {}
-  
-  /// Increment the total number of hash cache hits
-  void incrementMerkleHashCacheHits() {}
+  void setMerkleTreeDepth(int depth);
+  void setMerkleTreeLeafCount(int count);
+  void incrementMerkleRootHashChanges();
+  void recordMerkleTreeBuildDuration(int microseconds);
+  void recordMerkleTreeUpdateDuration(int microseconds);
+  void incrementMerkleHashComputations();
+  void incrementMerkleHashCacheHits();
+
+  // Payload optimization metrics
+  void recordPayloadOptimization(int originalBytes, int optimizedBytes);
+  void recordOptimizationEffectiveness(double reductionPercent);
+  void incrementSizeLimitExceeded();
+  void recordSizeEstimationAccuracy(int estimatedBytes, int actualBytes);
 }
 
 /// No-op implementation for when metrics are disabled
@@ -113,7 +81,6 @@ class NoOpReplicationMetrics implements ReplicationMetrics {
   @override
   void incrementSequenceGaps() {}
 
-  // Event application metrics
   @override
   void incrementEventsApplied() {}
 
@@ -132,7 +99,6 @@ class NoOpReplicationMetrics implements ReplicationMetrics {
   @override
   void recordApplicationLatency(int milliseconds) {}
 
-  // LWW conflict resolution metrics
   @override
   void incrementLWWComparisons() {}
 
@@ -151,7 +117,6 @@ class NoOpReplicationMetrics implements ReplicationMetrics {
   @override
   void incrementLWWAnomalies() {}
 
-  // Merkle tree metrics
   @override
   void setMerkleTreeDepth(int depth) {}
 
@@ -172,6 +137,18 @@ class NoOpReplicationMetrics implements ReplicationMetrics {
 
   @override
   void incrementMerkleHashCacheHits() {}
+
+  @override
+  void recordPayloadOptimization(int originalBytes, int optimizedBytes) {}
+
+  @override
+  void recordOptimizationEffectiveness(double reductionPercent) {}
+
+  @override
+  void incrementSizeLimitExceeded() {}
+
+  @override
+  void recordSizeEstimationAccuracy(int estimatedBytes, int actualBytes) {}
 }
 
 /// Simple in-memory metrics implementation for testing/debugging
@@ -197,13 +174,17 @@ class InMemoryReplicationMetrics implements ReplicationMetrics {
   int _merkleRootHashChanges = 0;
   int _merkleHashComputations = 0;
   int _merkleHashCacheHits = 0;
+  int _payloadOptimizedOriginalSize = 0;
+  int _payloadOptimizedReducedSize = 0;
+  double _optimizationEffectiveness = 0.0;
+  int _sizeLimitExceededCount = 0;
   final List<int> _publishLatencies = <int>[];
   final List<int> _flushDurations = <int>[];
   final List<int> _applicationLatencies = <int>[];
   final List<int> _merkleTreeBuildDurations = <int>[];
   final List<int> _merkleTreeUpdateDurations = <int>[];
 
-  // Getters
+  // Getters for accessing private fields in tests
   int get eventsPublished => _eventsPublished;
   int get publishErrors => _publishErrors;
   int get outboxSize => _outboxSize;
@@ -225,6 +206,10 @@ class InMemoryReplicationMetrics implements ReplicationMetrics {
   int get merkleRootHashChanges => _merkleRootHashChanges;
   int get merkleHashComputations => _merkleHashComputations;
   int get merkleHashCacheHits => _merkleHashCacheHits;
+  int get payloadOptimizedOriginalSize => _payloadOptimizedOriginalSize;
+  int get payloadOptimizedReducedSize => _payloadOptimizedReducedSize;
+  double get optimizationEffectiveness => _optimizationEffectiveness;
+  int get sizeLimitExceededCount => _sizeLimitExceededCount;
   List<int> get publishLatencies => List.unmodifiable(_publishLatencies);
   List<int> get flushDurations => List.unmodifiable(_flushDurations);
   List<int> get applicationLatencies => List.unmodifiable(_applicationLatencies);
@@ -266,7 +251,6 @@ class InMemoryReplicationMetrics implements ReplicationMetrics {
     _sequenceGaps++;
   }
 
-  // Event application metrics
   @override
   void incrementEventsApplied() {
     _eventsApplied++;
@@ -297,7 +281,6 @@ class InMemoryReplicationMetrics implements ReplicationMetrics {
     _applicationLatencies.add(milliseconds);
   }
 
-  // LWW conflict resolution metrics
   @override
   void incrementLWWComparisons() {
     _lwwComparisons++;
@@ -328,7 +311,6 @@ class InMemoryReplicationMetrics implements ReplicationMetrics {
     _lwwAnomalies++;
   }
 
-  // Merkle tree metrics
   @override
   void setMerkleTreeDepth(int depth) {
     _merkleTreeDepth = depth;
@@ -346,9 +328,7 @@ class InMemoryReplicationMetrics implements ReplicationMetrics {
 
   @override
   void recordMerkleTreeBuildDuration(int microseconds) {
-    // Clamp to minimum 1µs as per specification
-    final clampedDuration = microseconds < 1 ? 1 : microseconds;
-    _merkleTreeBuildDurations.add(clampedDuration);
+    _merkleTreeBuildDurations.add(microseconds);
   }
 
   @override
@@ -364,6 +344,27 @@ class InMemoryReplicationMetrics implements ReplicationMetrics {
   @override
   void incrementMerkleHashCacheHits() {
     _merkleHashCacheHits++;
+  }
+
+  @override
+  void recordPayloadOptimization(int originalBytes, int optimizedBytes) {
+    _payloadOptimizedOriginalSize += originalBytes;
+    _payloadOptimizedReducedSize += optimizedBytes;
+  }
+
+  @override
+  void recordOptimizationEffectiveness(double reductionPercent) {
+    _optimizationEffectiveness += reductionPercent;
+  }
+
+  @override
+  void incrementSizeLimitExceeded() {
+    _sizeLimitExceededCount++;
+  }
+
+  @override
+  void recordSizeEstimationAccuracy(int estimatedBytes, int actualBytes) {
+    // Implement accuracy tracking logic here
   }
 
   /// Reset all metrics (useful for testing)
@@ -389,6 +390,10 @@ class InMemoryReplicationMetrics implements ReplicationMetrics {
     _merkleRootHashChanges = 0;
     _merkleHashComputations = 0;
     _merkleHashCacheHits = 0;
+    _payloadOptimizedOriginalSize = 0;
+    _payloadOptimizedReducedSize = 0;
+    _optimizationEffectiveness = 0.0;
+    _sizeLimitExceededCount = 0;
     _publishLatencies.clear();
     _flushDurations.clear();
     _applicationLatencies.clear();
@@ -398,22 +403,25 @@ class InMemoryReplicationMetrics implements ReplicationMetrics {
 
   @override
   String toString() {
-    final avgPublishLatency = _publishLatencies.isEmpty 
-        ? 0 
+    final avgPublishLatency = _publishLatencies.isEmpty
+        ? 0
         : _publishLatencies.reduce((a, b) => a + b) / _publishLatencies.length;
-    
-    final avgApplicationLatency = _applicationLatencies.isEmpty 
-        ? 0 
-        : _applicationLatencies.reduce((a, b) => a + b) / _applicationLatencies.length;
-    
-    final avgMerkleBuildDuration = _merkleTreeBuildDurations.isEmpty 
-        ? 0 
-        : _merkleTreeBuildDurations.reduce((a, b) => a + b) / _merkleTreeBuildDurations.length;
-    
-    final avgMerkleUpdateDuration = _merkleTreeUpdateDurations.isEmpty 
-        ? 0 
-        : _merkleTreeUpdateDurations.reduce((a, b) => a + b) / _merkleTreeUpdateDurations.length;
-    
+
+    final avgApplicationLatency = _applicationLatencies.isEmpty
+        ? 0
+        : _applicationLatencies.reduce((a, b) => a + b) /
+            _applicationLatencies.length;
+
+    final avgMerkleBuildDuration = _merkleTreeBuildDurations.isEmpty
+        ? 0
+        : _merkleTreeBuildDurations.reduce((a, b) => a + b) /
+            _merkleTreeBuildDurations.length;
+
+    final avgMerkleUpdateDuration = _merkleTreeUpdateDurations.isEmpty
+        ? 0
+        : _merkleTreeUpdateDurations.reduce((a, b) => a + b) /
+            _merkleTreeUpdateDurations.length;
+
     return 'InMemoryReplicationMetrics('
         'eventsPublished: $_eventsPublished, '
         'publishErrors: $_publishErrors, '
@@ -436,6 +444,10 @@ class InMemoryReplicationMetrics implements ReplicationMetrics {
         'merkleRootHashChanges: $_merkleRootHashChanges, '
         'merkleHashComputations: $_merkleHashComputations, '
         'merkleHashCacheHits: $_merkleHashCacheHits, '
+        'payloadOptimizedOriginalSize: $_payloadOptimizedOriginalSize, '
+        'payloadOptimizedReducedSize: $_payloadOptimizedReducedSize, '
+        'optimizationEffectiveness: $_optimizationEffectiveness, '
+        'sizeLimitExceededCount: $_sizeLimitExceededCount, '
         'avgPublishLatency: ${avgPublishLatency.toStringAsFixed(1)}ms, '
         'avgApplicationLatency: ${avgApplicationLatency.toStringAsFixed(1)}ms, '
         'avgMerkleBuildDuration: ${avgMerkleBuildDuration.toStringAsFixed(1)}µs, '
