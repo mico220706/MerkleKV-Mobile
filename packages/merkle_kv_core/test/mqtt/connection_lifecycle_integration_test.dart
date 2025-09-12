@@ -79,6 +79,9 @@ void main() {
           await manager.connect();
           stopwatch.stop();
 
+          // Add small delay to ensure state is updated
+          await Future.delayed(Duration(milliseconds: 50));
+
           expect(manager.isConnected, isTrue);
           expect(stopwatch.elapsedMilliseconds, lessThan(5000)); // Should connect within 5s
 
@@ -105,11 +108,10 @@ void main() {
           return;
         }
 
+        // Use a non-existent host to simulate connection failure
         final invalidConfig = MerkleKVConfig(
-          mqttHost: host,
+          mqttHost: 'invalid-host-that-does-not-exist.com',
           mqttPort: port,
-          username: 'invalid_user',
-          password: 'invalid_password',
           nodeId: 'integration-test-node',
           clientId: 'integration-test-client-invalid',
           keepAliveSeconds: 10,

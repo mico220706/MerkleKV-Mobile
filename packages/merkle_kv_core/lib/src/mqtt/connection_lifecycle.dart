@@ -116,7 +116,6 @@ class DefaultConnectionLifecycleManager implements ConnectionLifecycleManager {
 
   ConnectionState _currentState = ConnectionState.disconnected;
   DateTime? _connectionStartTime;
-  Timer? _connectionTimeoutTimer;
   Timer? _disconnectionTimeoutTimer;
   final List<StreamSubscription> _subscriptions = [];
   final Set<String> _activeSubscriptions = {};
@@ -168,18 +167,20 @@ class DefaultConnectionLifecycleManager implements ConnectionLifecycleManager {
     _log('Starting connection to ${_config.mqttHost}:${_config.mqttPort}');
     _connectionStartTime = DateTime.now();
     
-      _updateState(
-        ConnectionState.connecting,
-        reason: 'Manual connection request',
-      );    // Set connection timeout
-    _connectionTimeoutTimer = Timer(
-      Duration(seconds: _config.keepAliveSeconds * 2),
-      () => _handleConnectionTimeout(),
+    _updateState(
+      ConnectionState.connecting,
+      reason: 'Manual connection request',
     );
 
     try {
-      await _mqttClient.connect();
-      _connectionTimeoutTimer?.cancel();
+      // Use Future.timeout to properly handle connection timeouts
+      await _mqttClient.connect().timeout(
+        Duration(seconds: _config.keepAliveSeconds * 2),
+        onTimeout: () {
+          _handleConnectionTimeout();
+          throw Exception('Connection timeout after ${_config.keepAliveSeconds * 2} seconds');
+        },
+      );
       
       final duration = DateTime.now().difference(_connectionStartTime!);
       _log('Connected successfully in ${duration.inMilliseconds}ms');
@@ -192,8 +193,6 @@ class DefaultConnectionLifecycleManager implements ConnectionLifecycleManager {
         reason: 'Connection established successfully',
       );
     } catch (e) {
-      _connectionTimeoutTimer?.cancel();
-      
       final reason = _categorizeConnectionError(e);
       _log('Connection failed: $reason - $e');
       
@@ -453,8 +452,15 @@ class DefaultConnectionLifecycleManager implements ConnectionLifecycleManager {
   Future<void> dispose() async {
     _log('Disposing connection lifecycle manager');
     
+    // Update state to disconnected if currently connected
+    if (_currentState != ConnectionState.disconnected) {
+      _updateState(
+        ConnectionState.disconnected,
+        reason: 'Manager disposed',
+      );
+    }
+    
     // Cancel all timers
-    _connectionTimeoutTimer?.cancel();
     _disconnectionTimeoutTimer?.cancel();
     for (final timer in _activeTimers) {
       timer.cancel();

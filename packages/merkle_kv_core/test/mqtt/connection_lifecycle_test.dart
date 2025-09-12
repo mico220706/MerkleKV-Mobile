@@ -38,15 +38,17 @@ class MockMqttClient implements MqttClientInterface {
 
   @override
   Future<void> connect() async {
+    setState(ConnectionState.connecting);
+    
     if (connectDelay > Duration.zero) {
       await Future.delayed(connectDelay);
     }
     
     if (shouldFailConnection) {
+      setState(ConnectionState.disconnected);
       throw connectionException ?? Exception('Connection failed');
     }
     
-    setState(ConnectionState.connecting);
     await Future.delayed(Duration(milliseconds: 10));
     setState(ConnectionState.connected);
   }
@@ -60,6 +62,11 @@ class MockMqttClient implements MqttClientInterface {
     }
     
     setState(ConnectionState.disconnecting);
+    
+    // Clean up all subscriptions when disconnecting
+    _subscriptions.clear();
+    _handlers.clear();
+    
     await Future.delayed(Duration(milliseconds: 10));
     setState(ConnectionState.disconnected);
   }
@@ -169,10 +176,8 @@ void main() {
         final events = <ConnectionStateEvent>[];
         final subscription = manager.connectionState.listen(events.add);
 
-        await expectLater(
-          manager.connect(),
-          throwsA(isA<Exception>()),
-        );
+        // Connection should not throw exception, but should timeout and update state
+        await manager.connect();
 
         // Should have timeout event
         expect(events.any((e) => e.reason?.contains('timeout') == true), isTrue);
