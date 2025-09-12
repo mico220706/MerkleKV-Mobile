@@ -1,10 +1,7 @@
 import 'dart:async';
 
-import 'package:merkle_kv_core/src/metrics/metrics_recorder.dart';
+import 'package:merkle_kv_core/src/replication/types.dart';
 import 'package:merkle_kv_core/src/replication/batched_publisher.dart';
-import 'package:merkle_kv_core/src/replication/mqtt/mqtt_client.dart';
-import 'package:merkle_kv_core/src/replication/replication_event.dart';
-import 'package:merkle_kv_core/src/replication/serialization/event_serializer.dart';
 import 'package:test/test.dart';
 
 class MockMqttClient implements MqttClient {
@@ -104,7 +101,7 @@ void main() {
 
     test('should publish events as separate MQTT messages', () async {
       // Arrange
-      final events = [
+      final events = <ReplicationEvent>[
         createEvent('key1'),
         createEvent('key2'),
         createEvent('key3'),
@@ -140,7 +137,7 @@ void main() {
 
     test('should publish after batch window elapses', () async {
       // Arrange
-      final events = [createEvent('key1'), createEvent('key2')];
+      final events = <ReplicationEvent>[createEvent('key1'), createEvent('key2')];
 
       // Act
       await publisher.schedulePublish(events);
@@ -154,7 +151,7 @@ void main() {
 
     test('should record metrics for successful publishes', () async {
       // Arrange
-      final events = [createEvent('key1'), createEvent('key2')];
+      final events = <ReplicationEvent>[createEvent('key1'), createEvent('key2')];
 
       // Act
       await publisher.schedulePublish(events);
@@ -170,7 +167,7 @@ void main() {
     test('should handle publish errors gracefully', () async {
       // Arrange
       mqttClient.throwOnPublish = true;
-      final events = [createEvent('key1'), createEvent('key2')];
+      final events = <ReplicationEvent>[createEvent('key1'), createEvent('key2')];
 
       // Act & Assert
       await publisher.schedulePublish(events);
