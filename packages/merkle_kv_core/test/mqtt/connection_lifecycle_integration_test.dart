@@ -122,7 +122,7 @@ void main() {
           mqttPort: port,
           nodeId: 'integration-test-node',
           clientId: 'integration-test-client-invalid',
-          keepAliveSeconds: 10,
+          keepAliveSeconds: 2, // Short timeout for faster test
         );
 
         final mqttClient = MqttClientImpl(invalidConfig);
@@ -141,21 +141,37 @@ void main() {
             throwsA(isA<Exception>()),
           );
 
+          // Wait a moment for events to be processed
+          await Future.delayed(Duration(milliseconds: 100));
+
           expect(manager.isConnected, isFalse);
 
-          // Should have error events or error states - be more flexible
+          // Check for connection failure indicators - be more comprehensive
+          final connectingEvents = events.where((e) => e.state == ConnectionState.connecting);
+          final disconnectedEvents = events.where((e) => e.state == ConnectionState.disconnected);
           final errorEvents = events.where((e) => e.error != null);
           final failureEvents = events.where((e) => 
             e.reason?.contains('failed') == true || 
             e.reason?.contains('error') == true ||
-            e.reason?.contains('Network error') == true);
+            e.reason?.contains('timeout') == true ||
+            e.reason?.toLowerCase().contains('connection') == true);
           
-          // At minimum one of these should be true for a connection failure
+          // For a connection failure, we should have:
+          // 1. At least one connecting event (connection attempt started)
+          // 2. At least one disconnected event (connection failed/timeout)
+          // 3. Either error events or failure reason events
+          expect(connectingEvents.isNotEmpty, isTrue, 
+                reason: 'Should have connecting events. All events: ${events.map((e) => '${e.state}: ${e.reason}').toList()}');
+          expect(disconnectedEvents.isNotEmpty, isTrue, 
+                reason: 'Should have disconnected events. All events: ${events.map((e) => '${e.state}: ${e.reason}').toList()}');
+          
           final hasErrorIndicators = errorEvents.isNotEmpty || failureEvents.isNotEmpty;
           expect(hasErrorIndicators, isTrue, 
                 reason: 'Should have error events or failure indicators. '
                         'Error events: ${errorEvents.length}, '
                         'Failure events: ${failureEvents.length}, '
+                        'Connecting events: ${connectingEvents.length}, '
+                        'Disconnected events: ${disconnectedEvents.length}, '
                         'All events: ${events.map((e) => '${e.state}: ${e.reason}').toList()}');
         } finally {
           await subscription.cancel();
