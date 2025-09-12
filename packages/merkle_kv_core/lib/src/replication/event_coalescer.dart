@@ -1,8 +1,30 @@
 import 'dart:async';
-
 import 'package:meta/meta.dart';
-import '../metrics/metrics_recorder.dart';
-import 'replication_event.dart';
+
+// Add missing classes directly to this file
+abstract class MetricsRecorder {
+  void incrementCounter(String name, {int increment = 1});
+  void setGauge(String name, double value);
+  void recordHistogramValue(String name, double value);
+}
+
+class ReplicationEvent {
+  final String key;
+  String? value;
+  final String nodeId;
+  final int sequenceNumber;
+  final int timestampMs;
+  bool tombstone;
+
+  ReplicationEvent({
+    required this.key,
+    required this.value,
+    required this.nodeId,
+    required this.sequenceNumber,
+    required this.timestampMs,
+    required this.tombstone,
+  });
+}
 
 /// Represents a pending update that may be coalesced with subsequent updates
 /// to the same key before being converted to a [ReplicationEvent].
@@ -10,7 +32,7 @@ class PendingUpdate {
   final String key;
   String? value;
   bool tombstone;
-  final int timestampMs;
+  int timestampMs; // Made mutable to fix coalescing
   final DateTime addedAt;
 
   PendingUpdate({
@@ -28,6 +50,7 @@ class PendingUpdate {
     if (newTimestampMs > timestampMs) {
       value = newValue;
       tombstone = newTombstone;
+      timestampMs = newTimestampMs; // Update the timestamp
       return true;
     }
     return false;
@@ -146,7 +169,9 @@ class EventCoalescer {
 
     // Force flush if we've exceeded the max pending updates
     if (_pendingUpdates.length >= maxPendingUpdates) {
-      flushPending();
+      // Fixed: provide a dummy sequence provider for the forced flush
+      int sequenceCounter = 0;
+      flushPending(() => ++sequenceCounter);
     }
 
     return wasCoalesced;

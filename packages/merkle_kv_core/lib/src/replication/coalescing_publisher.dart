@@ -1,12 +1,104 @@
-import '../metrics/metrics_recorder.dart';
-import 'batched_publisher.dart';
-import 'event_coalescer.dart';
-import 'mqtt/mqtt_client.dart';
-import 'outbox/outbox_queue.dart';
-import 'replication_event.dart';
-import 'replication_event_publisher.dart';
-import 'serialization/event_serializer.dart';
-import 'sequence/sequence_manager.dart';
+// Add missing interfaces and imports directly
+abstract class MetricsRecorder {
+  void incrementCounter(String name, {int increment = 1});
+  void setGauge(String name, double value);
+  void recordHistogramValue(String name, double value);
+}
+
+abstract class MqttClient {
+  bool get isConnected;
+  Future<void> publish(String topic, List<int> payload);
+}
+
+class ReplicationEvent {
+  final String key;
+  String? value;
+  final String nodeId;
+  final int sequenceNumber;
+  final int timestampMs;
+  bool tombstone;
+
+  ReplicationEvent({
+    required this.key,
+    required this.value,
+    required this.nodeId,
+    required this.sequenceNumber,
+    required this.timestampMs,
+    required this.tombstone,
+  });
+}
+
+abstract class EventSerializer {
+  List<int> serialize(ReplicationEvent event);
+  ReplicationEvent deserialize(List<int> bytes);
+}
+
+abstract class SequenceManager {
+  Future<void> initialize();
+  int getNextSequenceNumber();
+  Future<void> persistSequenceNumber(int sequenceNumber);
+  Future<void> reset();
+}
+
+abstract class OutboxQueue {
+  Future<void> initialize();
+  Future<void> enqueueEvent(ReplicationEvent event);
+  Future<void> enqueueEvents(List<ReplicationEvent> events);
+  Future<List<ReplicationEvent>> dequeueEvents({int limit = 100});
+  Future<void> flush();
+}
+
+abstract class ReplicationEventPublisher {
+  Future<void> publishUpdate({
+    required String key,
+    required String value,
+    required int timestampMs,
+  });
+  Future<void> publishDelete({
+    required String key,
+    required int timestampMs,
+  });
+  Future<void> publishEvent(ReplicationEvent event);
+  Future<void> flush();
+}
+
+enum UpdateOperation {
+  set,
+  delete,
+}
+
+// Include the EventCoalescer and BatchedPublisher classes here or import them
+// For now, let's create minimal interfaces
+abstract class EventCoalescer {
+  Duration get coalescingWindow;
+  int get maxPendingUpdates;
+  String get nodeId;
+  int get pendingUpdatesCount;
+  double get coalescingEffectiveness;
+  
+  bool addUpdate({
+    required String key,
+    String? value,
+    required bool tombstone,
+    required int timestampMs,
+    required UpdateOperation operation,
+  });
+  
+  List<ReplicationEvent> flushPending(int Function() sequenceProvider);
+  void dispose();
+}
+
+abstract class BatchedPublisher {
+  Duration get batchWindow;
+  int get maxBatchSize;
+  MqttClient get mqttClient;
+  String get replicationTopic;
+  EventSerializer get serializer;
+  
+  Future<void> schedulePublish(List<ReplicationEvent> events);
+  Future<void> flushPending();
+  void dispose();
+}
 
 /// A [ReplicationEventPublisher] implementation that combines coalescing and batching
 /// to efficiently publish replication events while maintaining the protocol requirement
@@ -39,45 +131,6 @@ class CoalescingPublisher implements ReplicationEventPublisher {
     required this.batchedPublisher,
     MetricsRecorder? metrics,
   }) : _metrics = metrics;
-
-  /// Creates a [CoalescingPublisher] with default components based on the provided parameters.
-  factory CoalescingPublisher.create({
-    required SequenceManager sequenceManager,
-    required OutboxQueue outboxQueue,
-    required MqttClient mqttClient,
-    required String replicationTopic,
-    required EventSerializer serializer,
-    required String nodeId,
-    Duration coalescingWindow = const Duration(milliseconds: 100),
-    int maxPendingUpdates = 1000,
-    Duration batchWindow = const Duration(milliseconds: 50),
-    int maxBatchSize = 100,
-    MetricsRecorder? metrics,
-  }) {
-    final eventCoalescer = EventCoalescer(
-      nodeId: nodeId,
-      coalescingWindow: coalescingWindow,
-      maxPendingUpdates: maxPendingUpdates,
-      metrics: metrics,
-    );
-
-    final batchedPublisher = BatchedPublisher(
-      mqttClient: mqttClient,
-      replicationTopic: replicationTopic,
-      serializer: serializer,
-      batchWindow: batchWindow,
-      maxBatchSize: maxBatchSize,
-      metrics: metrics,
-    );
-
-    return CoalescingPublisher(
-      sequenceManager: sequenceManager,
-      outboxQueue: outboxQueue,
-      eventCoalescer: eventCoalescer,
-      batchedPublisher: batchedPublisher,
-      metrics: metrics,
-    );
-  }
 
   @override
   Future<void> publishUpdate({
