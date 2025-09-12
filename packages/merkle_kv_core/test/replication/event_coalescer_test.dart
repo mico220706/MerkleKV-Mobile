@@ -1,6 +1,5 @@
-import 'package:merkle_kv_core/src/metrics/metrics_recorder.dart';
+import 'package:merkle_kv_core/src/replication/types.dart';
 import 'package:merkle_kv_core/src/replication/event_coalescer.dart';
-import 'package:merkle_kv_core/src/replication/replication_event.dart';
 import 'package:test/test.dart';
 
 class MockMetricsRecorder implements MetricsRecorder {
@@ -197,7 +196,6 @@ void main() {
 
       // Assert
       // The 11th update should trigger a flush
-      int sequenceNumber = 0;
       coalescer.addUpdate(
         key: 'key11',
         value: 'value11',

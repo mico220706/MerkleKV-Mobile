@@ -1,39 +1,5 @@
 import 'dart:async';
-
-// Add missing interfaces directly
-abstract class MetricsRecorder {
-  void incrementCounter(String name, {int increment = 1});
-  void setGauge(String name, double value);
-  void recordHistogramValue(String name, double value);
-}
-
-abstract class MqttClient {
-  bool get isConnected;
-  Future<void> publish(String topic, List<int> payload);
-}
-
-class ReplicationEvent {
-  final String key;
-  String? value;
-  final String nodeId;
-  final int sequenceNumber;
-  final int timestampMs;
-  bool tombstone;
-
-  ReplicationEvent({
-    required this.key,
-    required this.value,
-    required this.nodeId,
-    required this.sequenceNumber,
-    required this.timestampMs,
-    required this.tombstone,
-  });
-}
-
-abstract class EventSerializer {
-  List<int> serialize(ReplicationEvent event);
-  ReplicationEvent deserialize(List<int> bytes);
-}
+import 'types.dart';
 
 /// Manages batched publication of replication events to MQTT while maintaining
 /// the protocol requirement of one CBOR event per MQTT publish.

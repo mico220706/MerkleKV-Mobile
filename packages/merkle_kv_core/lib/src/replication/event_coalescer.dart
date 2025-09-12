@@ -1,30 +1,6 @@
 import 'dart:async';
 import 'package:meta/meta.dart';
-
-// Add missing classes directly to this file
-abstract class MetricsRecorder {
-  void incrementCounter(String name, {int increment = 1});
-  void setGauge(String name, double value);
-  void recordHistogramValue(String name, double value);
-}
-
-class ReplicationEvent {
-  final String key;
-  String? value;
-  final String nodeId;
-  final int sequenceNumber;
-  final int timestampMs;
-  bool tombstone;
-
-  ReplicationEvent({
-    required this.key,
-    required this.value,
-    required this.nodeId,
-    required this.sequenceNumber,
-    required this.timestampMs,
-    required this.tombstone,
-  });
-}
+import 'types.dart';
 
 /// Represents a pending update that may be coalesced with subsequent updates
 /// to the same key before being converted to a [ReplicationEvent].
@@ -32,7 +8,7 @@ class PendingUpdate {
   final String key;
   String? value;
   bool tombstone;
-  int timestampMs; // Made mutable to fix coalescing
+  int timestampMs;
   final DateTime addedAt;
 
   PendingUpdate({
@@ -50,7 +26,7 @@ class PendingUpdate {
     if (newTimestampMs > timestampMs) {
       value = newValue;
       tombstone = newTombstone;
-      timestampMs = newTimestampMs; // Update the timestamp
+      timestampMs = newTimestampMs;
       return true;
     }
     return false;
@@ -67,12 +43,6 @@ class PendingUpdate {
       tombstone: tombstone,
     );
   }
-}
-
-/// Defines an operation type for the [EventCoalescer].
-enum UpdateOperation {
-  set,
-  delete,
 }
 
 /// Manages coalescing of rapid updates to the same keys before they are
