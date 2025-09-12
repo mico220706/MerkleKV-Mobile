@@ -119,7 +119,7 @@ void main() {
         await merkleKV.connect();
       });
 
-      tearDown() async {
+      tearDown(() async {
         await merkleKV.disconnect();
       });
 
@@ -181,7 +181,7 @@ void main() {
         await merkleKV.connect();
       });
 
-      tearDown() async {
+      tearDown(() async {
         await merkleKV.disconnect();
       });
 
