@@ -35,6 +35,9 @@ export 'src/replication/event_applicator.dart';
 export 'src/replication/metrics.dart';
 export 'src/replication/lww_resolver.dart';
 
+// Anti-Entropy Protocol
+export 'src/anti_entropy/sync_protocol.dart';
+
 // Merkle Tree
 export 'src/merkle/merkle_tree.dart';
 

@@ -54,6 +54,35 @@ abstract class ReplicationMetrics {
   void recordOptimizationEffectiveness(double reductionPercent);
   void incrementSizeLimitExceeded();
   void recordSizeEstimationAccuracy(int estimatedBytes, int actualBytes);
+
+  // Anti-entropy protocol metrics (for issue #17)
+  
+  /// Increment the total number of anti-entropy sync attempts
+  void incrementAntiEntropySyncAttempts();
+  
+  /// Increment the total number of successful anti-entropy syncs
+  void incrementAntiEntropySyncSuccess();
+  
+  /// Record the total number of keys synced in an anti-entropy operation
+  void recordAntiEntropyKeysSynced(int count);
+  
+  /// Record anti-entropy sync duration in microseconds
+  void recordAntiEntropySyncDuration(int microseconds);
+  
+  /// Record anti-entropy payload size in bytes
+  void recordAntiEntropyPayloadSize(int bytes);
+  
+  /// Increment the total number of rate limit hits
+  void incrementAntiEntropyRateLimitHits();
+  
+  /// Record the total number of divergent keys found
+  void recordAntiEntropyDivergentKeysFound(int count);
+  
+  /// Increment the total number of convergence rounds completed
+  void incrementAntiEntropyConvergenceRounds();
+  
+  /// Increment the total number of anti-entropy protocol errors
+  void incrementAntiEntropyErrors();
 }
 
 /// No-op implementation for when metrics are disabled
@@ -149,6 +178,34 @@ class NoOpReplicationMetrics implements ReplicationMetrics {
 
   @override
   void recordSizeEstimationAccuracy(int estimatedBytes, int actualBytes) {}
+
+  // Anti-entropy protocol metrics
+  @override
+  void incrementAntiEntropySyncAttempts() {}
+
+  @override
+  void incrementAntiEntropySyncSuccess() {}
+
+  @override
+  void recordAntiEntropyKeysSynced(int count) {}
+
+  @override
+  void recordAntiEntropySyncDuration(int microseconds) {}
+
+  @override
+  void recordAntiEntropyPayloadSize(int bytes) {}
+
+  @override
+  void incrementAntiEntropyRateLimitHits() {}
+
+  @override
+  void recordAntiEntropyDivergentKeysFound(int count) {}
+
+  @override
+  void incrementAntiEntropyConvergenceRounds() {}
+  
+  @override
+  void incrementAntiEntropyErrors() {}
 }
 
 /// Simple in-memory metrics implementation for testing/debugging
@@ -174,15 +231,28 @@ class InMemoryReplicationMetrics implements ReplicationMetrics {
   int _merkleRootHashChanges = 0;
   int _merkleHashComputations = 0;
   int _merkleHashCacheHits = 0;
+  
+  // Payload optimization metrics
   int _payloadOptimizedOriginalSize = 0;
   int _payloadOptimizedReducedSize = 0;
   double _optimizationEffectiveness = 0.0;
   int _sizeLimitExceededCount = 0;
+  
+  // Anti-entropy protocol metrics
+  int _antiEntropySyncAttempts = 0;
+  int _antiEntropySyncSuccess = 0;
+  int _antiEntropyKeysSynced = 0;
+  int _antiEntropyRateLimitHits = 0;
+  int _antiEntropyDivergentKeysFound = 0;
+  int _antiEntropyConvergenceRounds = 0;
+  int _antiEntropyErrors = 0;
   final List<int> _publishLatencies = <int>[];
   final List<int> _flushDurations = <int>[];
   final List<int> _applicationLatencies = <int>[];
   final List<int> _merkleTreeBuildDurations = <int>[];
   final List<int> _merkleTreeUpdateDurations = <int>[];
+  final List<int> _antiEntropySyncDurations = <int>[];
+  final List<int> _antiEntropyPayloadSizes = <int>[];
 
   // Getters for accessing private fields in tests
   int get eventsPublished => _eventsPublished;
@@ -215,6 +285,15 @@ class InMemoryReplicationMetrics implements ReplicationMetrics {
   List<int> get applicationLatencies => List.unmodifiable(_applicationLatencies);
   List<int> get merkleTreeBuildDurations => List.unmodifiable(_merkleTreeBuildDurations);
   List<int> get merkleTreeUpdateDurations => List.unmodifiable(_merkleTreeUpdateDurations);
+  int get antiEntropySyncAttempts => _antiEntropySyncAttempts;
+  int get antiEntropySyncSuccess => _antiEntropySyncSuccess;
+  int get antiEntropyKeysSynced => _antiEntropyKeysSynced;
+  int get antiEntropyRateLimitHits => _antiEntropyRateLimitHits;
+  int get antiEntropyDivergentKeysFound => _antiEntropyDivergentKeysFound;
+  int get antiEntropyConvergenceRounds => _antiEntropyConvergenceRounds;
+  int get antiEntropyErrors => _antiEntropyErrors;
+  List<int> get antiEntropySyncDurations => List.unmodifiable(_antiEntropySyncDurations);
+  List<int> get antiEntropyPayloadSizes => List.unmodifiable(_antiEntropyPayloadSizes);
 
   @override
   void incrementEventsPublished() {
@@ -346,6 +425,7 @@ class InMemoryReplicationMetrics implements ReplicationMetrics {
     _merkleHashCacheHits++;
   }
 
+  // Payload optimization metrics  
   @override
   void recordPayloadOptimization(int originalBytes, int optimizedBytes) {
     _payloadOptimizedOriginalSize += originalBytes;
@@ -365,6 +445,51 @@ class InMemoryReplicationMetrics implements ReplicationMetrics {
   @override
   void recordSizeEstimationAccuracy(int estimatedBytes, int actualBytes) {
     // Implement accuracy tracking logic here
+  }
+
+  // Anti-entropy protocol metrics
+  void incrementAntiEntropySyncAttempts() {
+    _antiEntropySyncAttempts++;
+  }
+
+  @override
+  void incrementAntiEntropySyncSuccess() {
+    _antiEntropySyncSuccess++;
+  }
+
+  @override
+  void recordAntiEntropyKeysSynced(int count) {
+    _antiEntropyKeysSynced += count;
+  }
+
+  @override
+  void recordAntiEntropySyncDuration(int microseconds) {
+    _antiEntropySyncDurations.add(microseconds);
+  }
+
+  @override
+  void recordAntiEntropyPayloadSize(int bytes) {
+    _antiEntropyPayloadSizes.add(bytes);
+  }
+
+  @override
+  void incrementAntiEntropyRateLimitHits() {
+    _antiEntropyRateLimitHits++;
+  }
+
+  @override
+  void recordAntiEntropyDivergentKeysFound(int count) {
+    _antiEntropyDivergentKeysFound += count;
+  }
+
+  @override
+  void incrementAntiEntropyConvergenceRounds() {
+    _antiEntropyConvergenceRounds++;
+  }
+  
+  @override
+  void incrementAntiEntropyErrors() {
+    _antiEntropyErrors++;
   }
 
   /// Reset all metrics (useful for testing)
@@ -390,15 +515,28 @@ class InMemoryReplicationMetrics implements ReplicationMetrics {
     _merkleRootHashChanges = 0;
     _merkleHashComputations = 0;
     _merkleHashCacheHits = 0;
+    
+    // Reset payload optimization metrics
     _payloadOptimizedOriginalSize = 0;
     _payloadOptimizedReducedSize = 0;
     _optimizationEffectiveness = 0.0;
     _sizeLimitExceededCount = 0;
+    
+    // Reset anti-entropy metrics
+    _antiEntropySyncAttempts = 0;
+    _antiEntropySyncSuccess = 0;
+    _antiEntropyKeysSynced = 0;
+    _antiEntropyRateLimitHits = 0;
+    _antiEntropyDivergentKeysFound = 0;
+    _antiEntropyConvergenceRounds = 0;
+    _antiEntropyErrors = 0;
     _publishLatencies.clear();
     _flushDurations.clear();
     _applicationLatencies.clear();
     _merkleTreeBuildDurations.clear();
     _merkleTreeUpdateDurations.clear();
+    _antiEntropySyncDurations.clear();
+    _antiEntropyPayloadSizes.clear();
   }
 
   @override
@@ -448,6 +586,13 @@ class InMemoryReplicationMetrics implements ReplicationMetrics {
         'payloadOptimizedReducedSize: $_payloadOptimizedReducedSize, '
         'optimizationEffectiveness: $_optimizationEffectiveness, '
         'sizeLimitExceededCount: $_sizeLimitExceededCount, '
+        'antiEntropySyncAttempts: $_antiEntropySyncAttempts, '
+        'antiEntropySyncSuccess: $_antiEntropySyncSuccess, '
+        'antiEntropyKeysSynced: $_antiEntropyKeysSynced, '
+        'antiEntropyRateLimitHits: $_antiEntropyRateLimitHits, '
+        'antiEntropyDivergentKeysFound: $_antiEntropyDivergentKeysFound, '
+        'antiEntropyConvergenceRounds: $_antiEntropyConvergenceRounds, '
+        'antiEntropyErrors: $_antiEntropyErrors, '
         'avgPublishLatency: ${avgPublishLatency.toStringAsFixed(1)}ms, '
         'avgApplicationLatency: ${avgApplicationLatency.toStringAsFixed(1)}ms, '
         'avgMerkleBuildDuration: ${avgMerkleBuildDuration.toStringAsFixed(1)}µs, '
