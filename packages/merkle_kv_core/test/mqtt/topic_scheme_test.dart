@@ -87,7 +87,7 @@ void main() {
                 .having(
                   (e) => e.message,
                   'message',
-                  contains('wildcard character \'+\''),
+                  contains('MQTT wildcard \'+\''),
                 ),
           ),
         );
@@ -102,14 +102,14 @@ void main() {
                 .having(
                   (e) => e.message,
                   'message',
-                  contains('wildcard character \'#\''),
+                  contains('MQTT wildcard \'#\''),
                 ),
           ),
         );
       });
 
       test('rejects prefix that is too long', () {
-        final longPrefix = 'a' * 101; // 101 characters
+        final longPrefix = 'a' * 51; // 51 UTF-8 bytes
         expect(
           () => TopicScheme.create(longPrefix, 'client-1'),
           throwsA(
@@ -118,7 +118,7 @@ void main() {
                 .having(
                   (e) => e.message,
                   'message',
-                  contains('cannot exceed 100 characters'),
+                  contains('51 UTF-8 bytes. Maximum allowed: 50 bytes'),
                 ),
           ),
         );
@@ -147,8 +147,8 @@ void main() {
         );
       });
 
-      test('accepts prefix at maximum length (100 characters)', () {
-        final maxPrefix = 'a' * 100;
+      test('accepts prefix at maximum length (50 UTF-8 bytes)', () {
+        final maxPrefix = 'a' * 50;
         final scheme = TopicScheme.create(maxPrefix, 'client-1');
         expect(scheme.prefix, equals(maxPrefix));
       });
@@ -170,7 +170,7 @@ void main() {
         );
       });
 
-      test('rejects clientId longer than 128 characters', () {
+      test('rejects clientId longer than 128 UTF-8 bytes', () {
         final longClientId = 'a' * 129;
         expect(
           () => TopicScheme.create('test', longClientId),
@@ -180,13 +180,13 @@ void main() {
                 .having(
                   (e) => e.message,
                   'message',
-                  contains('cannot exceed 128 characters'),
+                  contains('129 UTF-8 bytes. Maximum allowed: 128 bytes'),
                 ),
           ),
         );
       });
 
-      test('accepts clientId at maximum length (128 characters)', () {
+      test('accepts clientId at maximum length (128 UTF-8 bytes)', () {
         final maxClientId = 'a' * 128;
         final scheme = TopicScheme.create('test', maxClientId);
         expect(scheme.clientId, equals(maxClientId));
@@ -201,7 +201,7 @@ void main() {
                 .having(
                   (e) => e.message,
                   'message',
-                  contains('cannot contain \'/\' character'),
+                  contains('forward slash (/)'),
                 ),
           ),
         );
@@ -216,7 +216,7 @@ void main() {
                 .having(
                   (e) => e.message,
                   'message',
-                  contains('wildcard character \'+\''),
+                  contains('MQTT wildcard \'+\''),
                 ),
           ),
         );
@@ -231,7 +231,7 @@ void main() {
                 .having(
                   (e) => e.message,
                   'message',
-                  contains('wildcard character \'#\''),
+                  contains('MQTT wildcard \'#\''),
                 ),
           ),
         );
