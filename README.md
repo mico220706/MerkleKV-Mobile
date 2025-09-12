@@ -708,8 +708,65 @@ void main() async {
 2. Unit tests for core components
 3. Mock-based tests for MQTT communication
 4. Integration tests with real MQTT brokers
-5. Flutter-specific integration tests
+5. **Flutter Widget Tests**: UI and interaction testing using Dart VM
 6. End-to-end tests in a real mobile environment
+
+### Flutter Widget Testing (No Emulator Required)
+
+The Flutter demo app includes comprehensive widget tests that run on the Dart VM for fast, reliable testing without requiring Android emulators.
+
+#### Running Widget Tests Locally
+
+From the Flutter demo directory:
+```bash
+cd apps/flutter_demo
+
+# Get dependencies
+flutter pub get
+
+# Run static analysis
+flutter analyze --fatal-infos --fatal-warnings
+
+# Check code formatting
+dart format --set-exit-if-changed .
+
+# Run widget tests with coverage
+flutter test --coverage --reporter=expanded
+
+# Run specific widget tests
+flutter test test/widget/counter_widget_test.dart
+
+# Build APK to verify compilation
+flutter build apk --debug
+```
+
+#### CI/CD Integration
+
+The project includes automated widget testing in GitHub Actions:
+- **File**: `.github/workflows/android-testing.yml`
+- **Runtime**: < 1 minute on standard runners
+- **Features**: 
+  - Dart VM testing (no emulator)
+  - Coverage reporting
+  - Build verification
+  - Dependency caching (pub + gradle)
+  - Expanded error reporting
+
+Workflows automatically trigger on:
+- Push to `main` or `develop` branches
+- Pull requests to `main` 
+- Changes to Flutter app or workflow files
+
+#### Test Coverage
+
+Widget tests cover:
+- App rendering and UI structure
+- Text display and styling
+- Navigation and routing
+- State management
+- User interactions (tap, scroll, input)
+- Theme and styling application
+- Error handling and edge cases
 
 ### Running Integration Tests (MQTT broker required)
 
