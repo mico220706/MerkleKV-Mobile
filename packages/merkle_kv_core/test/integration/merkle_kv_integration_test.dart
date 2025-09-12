@@ -25,10 +25,10 @@ void main() {
       }
 
       config = MerkleKVConfig.create(
-        brokerHost: 'localhost',
-        brokerPort: 1883,
+        mqttHost: 'localhost',
+        mqttPort: 1883,
         clientId: 'test_client_${DateTime.now().millisecondsSinceEpoch}',
-        enableOfflineQueue: false,
+        nodeId: 'test_node_${DateTime.now().millisecondsSinceEpoch}',
       );
     });
 
@@ -36,7 +36,7 @@ void main() {
       test('complete CRUD workflow', () async {
         if (!brokerAvailable) return;
 
-        final merkleKV = MerkleKV.create(config);
+        final merkleKV = await MerkleKV.create(config);
         
         try {
           // Connect
@@ -72,7 +72,7 @@ void main() {
       test('numeric operations workflow', () async {
         if (!brokerAvailable) return;
 
-        final merkleKV = MerkleKV.create(config);
+        final merkleKV = await MerkleKV.create(config);
         
         try {
           await merkleKV.connect();
@@ -106,7 +106,7 @@ void main() {
       test('string operations workflow', () async {
         if (!brokerAvailable) return;
 
-        final merkleKV = MerkleKV.create(config);
+        final merkleKV = await MerkleKV.create(config);
         
         try {
           await merkleKV.connect();
@@ -134,7 +134,7 @@ void main() {
       test('bulk operations workflow', () async {
         if (!brokerAvailable) return;
 
-        final merkleKV = MerkleKV.create(config);
+        final merkleKV = await MerkleKV.create(config);
         
         try {
           await merkleKV.connect();
@@ -171,10 +171,10 @@ void main() {
       test('handles connection failures gracefully', () async {
         // Use invalid broker configuration
         final invalidConfig = MerkleKVConfig.create(
-          brokerHost: 'nonexistent.broker.invalid',
-          brokerPort: 1883,
+          mqttHost: 'nonexistent.broker.invalid',
+          mqttPort: 1883,
           clientId: 'test_client',
-          enableOfflineQueue: false,
+          nodeId: 'test_node',
         );
 
         final merkleKV = MerkleKV.create(invalidConfig);
@@ -188,7 +188,7 @@ void main() {
       test('fail-fast behavior when disconnected', () async {
         if (!brokerAvailable) return;
 
-        final merkleKV = MerkleKV.create(config);
+        final merkleKV = await MerkleKV.create(config);
         
         // Don't connect - should fail fast
         expect(
@@ -211,7 +211,7 @@ void main() {
       test('validation errors for oversized keys and values', () async {
         if (!brokerAvailable) return;
 
-        final merkleKV = MerkleKV.create(config);
+        final merkleKV = await MerkleKV.create(config);
         
         try {
           await merkleKV.connect();
@@ -253,7 +253,7 @@ void main() {
       test('handles international characters correctly', () async {
         if (!brokerAvailable) return;
 
-        final merkleKV = MerkleKV.create(config);
+        final merkleKV = await MerkleKV.create(config);
         
         try {
           await merkleKV.connect();
@@ -286,7 +286,7 @@ void main() {
       test('respects UTF-8 byte limits correctly', () async {
         if (!brokerAvailable) return;
 
-        final merkleKV = MerkleKV.create(config);
+        final merkleKV = await MerkleKV.create(config);
         
         try {
           await merkleKV.connect();
@@ -318,7 +318,7 @@ void main() {
       test('handles concurrent operations safely', () async {
         if (!brokerAvailable) return;
 
-        final merkleKV = MerkleKV.create(config);
+        final merkleKV = await MerkleKV.create(config);
         
         try {
           await merkleKV.connect();
@@ -357,7 +357,7 @@ void main() {
       test('maintains consistency under concurrent access', () async {
         if (!brokerAvailable) return;
 
-        final merkleKV = MerkleKV.create(config);
+        final merkleKV = await MerkleKV.create(config);
         
         try {
           await merkleKV.connect();
@@ -389,10 +389,10 @@ void main() {
       test('respects offline queue configuration', () async {
         // Test with offline queue disabled
         final configNoQueue = MerkleKVConfig.create(
-          brokerHost: 'localhost',
-          brokerPort: 1883,
+          mqttHost: 'localhost',
+          mqttPort: 1883,
           clientId: 'test_offline_disabled',
-          enableOfflineQueue: false,
+          nodeId: 'test_node_offline',
         );
 
         final merkleKVNoQueue = MerkleKV.create(configNoQueue);
@@ -405,10 +405,10 @@ void main() {
 
         // Test with offline queue enabled
         final configWithQueue = MerkleKVConfig.create(
-          brokerHost: 'localhost',
-          brokerPort: 1883,
+          mqttHost: 'localhost',
+          mqttPort: 1883,
           clientId: 'test_offline_enabled',
-          enableOfflineQueue: true,
+          nodeId: 'test_node_queue',
         );
 
         final merkleKVWithQueue = MerkleKV.create(configWithQueue);

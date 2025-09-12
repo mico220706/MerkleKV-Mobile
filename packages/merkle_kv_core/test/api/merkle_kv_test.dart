@@ -28,12 +28,12 @@ void main() {
       mockCommandProcessor = MockCommandProcessor();
       
       config = MerkleKVConfig.create(
-        brokerHost: 'localhost',
-        brokerPort: 1883,
+        mqttHost: 'localhost',
+        mqttPort: 1883,
         clientId: 'test_client',
+        nodeId: 'test_node',
         username: 'test_user',
         password: 'test_pass',
-        enableOfflineQueue: false,
       );
 
       // Setup default mock behaviors
@@ -49,9 +49,10 @@ void main() {
 
       test('throws ValidationException for invalid configuration', () {
         final invalidConfig = MerkleKVConfig.create(
-          brokerHost: '', // Invalid empty host
-          brokerPort: 1883,
+          mqttHost: '', // Invalid empty host
+          mqttPort: 1883,
           clientId: 'test_client',
+          nodeId: 'test_node',
         );
         
         expect(
@@ -501,10 +502,10 @@ void main() {
     group('Offline Queue Behavior', () {
       test('enables offline queue when configured', () {
         final configWithQueue = MerkleKVConfig.create(
-          brokerHost: 'localhost',
-          brokerPort: 1883,
+          mqttHost: 'localhost',
+          mqttPort: 1883,
           clientId: 'test_client',
-          enableOfflineQueue: true,
+          nodeId: 'test_node',
         );
         
         final merkleKV = MerkleKV.create(configWithQueue);
@@ -517,10 +518,10 @@ void main() {
 
       test('disables offline queue when configured', () {
         final configWithoutQueue = MerkleKVConfig.create(
-          brokerHost: 'localhost',
-          brokerPort: 1883,
+          mqttHost: 'localhost',
+          mqttPort: 1883,
           clientId: 'test_client',
-          enableOfflineQueue: false,
+          nodeId: 'test_node',
         );
         
         final merkleKV = MerkleKV.create(configWithoutQueue);
