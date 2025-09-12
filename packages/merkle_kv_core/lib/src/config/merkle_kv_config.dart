@@ -69,6 +69,13 @@ class MerkleKVConfig {
   /// Required when [persistenceEnabled] is true.
   final String? storagePath;
 
+  /// Whether offline queue is enabled for operations when disconnected.
+  ///
+  /// When true, operations can be queued while disconnected and will be
+  /// executed when connection is restored. When false, operations will
+  /// fail fast with ConnectionException when disconnected.
+  final bool? enableOfflineQueue;
+
   /// Static security warning handler for non-TLS credential usage.
   static void Function(String message)? _onSecurityWarning;
 
@@ -88,6 +95,7 @@ class MerkleKVConfig {
     required this.tombstoneRetentionHours,
     required this.persistenceEnabled,
     required this.storagePath,
+    required this.enableOfflineQueue,
   });
 
   /// Creates a new MerkleKVConfig with validation and default values.
@@ -109,6 +117,7 @@ class MerkleKVConfig {
     int tombstoneRetentionHours = 24,
     bool persistenceEnabled = false,
     String? storagePath,
+    bool? enableOfflineQueue,
   }) {
     return MerkleKVConfig._validated(
       mqttHost: mqttHost,
@@ -125,6 +134,7 @@ class MerkleKVConfig {
       tombstoneRetentionHours: tombstoneRetentionHours,
       persistenceEnabled: persistenceEnabled,
       storagePath: storagePath,
+      enableOfflineQueue: enableOfflineQueue,
     );
   }
 
@@ -209,6 +219,7 @@ class MerkleKVConfig {
     required int tombstoneRetentionHours,
     required bool persistenceEnabled,
     String? storagePath,
+    bool? enableOfflineQueue,
   }) {
     // Validate mqttHost
     if (mqttHost.trim().isEmpty) {
@@ -321,6 +332,7 @@ class MerkleKVConfig {
       tombstoneRetentionHours: tombstoneRetentionHours,
       persistenceEnabled: persistenceEnabled,
       storagePath: storagePath,
+      enableOfflineQueue: enableOfflineQueue ?? false,
     );
   }
 
@@ -450,5 +462,201 @@ class MerkleKVConfig {
         'persistenceEnabled: $persistenceEnabled, '
         'storagePath: $storagePath'
         '}';
+  }
+
+  /// Creates a new builder for MerkleKVConfig.
+  ///
+  /// The builder pattern provides a fluent interface for configuring
+  /// MerkleKV instances with validation and sensible defaults.
+  ///
+  /// Example:
+  /// ```dart
+  /// final config = MerkleKVConfig.builder()
+  ///   .mqttHost('broker.example.com')
+  ///   .mqttPort(8883)
+  ///   .clientId('mobile-app-1')
+  ///   .nodeId('node-1')
+  ///   .topicPrefix('myapp/production')
+  ///   .useTLS(true)
+  ///   .credentials('username', 'password')
+  ///   .build();
+  /// ```
+  static MerkleKVConfigBuilder builder() => MerkleKVConfigBuilder();
+}
+
+/// Builder class for creating MerkleKVConfig instances.
+///
+/// Provides a fluent interface with validation and sensible defaults.
+class MerkleKVConfigBuilder {
+  String? _mqttHost;
+  int? _mqttPort;
+  String? _username;
+  String? _password;
+  bool _mqttUseTls = false;
+  String? _clientId;
+  String? _nodeId;
+  String _topicPrefix = '';
+  int _keepAliveSeconds = 60;
+  int _sessionExpirySeconds = 86400;
+  int _skewMaxFutureMs = 300000;
+  int _tombstoneRetentionHours = 24;
+  bool _persistenceEnabled = false;
+  String? _storagePath;
+  bool? _enableOfflineQueue;
+
+  /// Sets the MQTT broker hostname or IP address.
+  MerkleKVConfigBuilder mqttHost(String host) {
+    _mqttHost = host;
+    return this;
+  }
+
+  /// Sets the MQTT broker port.
+  ///
+  /// If not specified, defaults to 8883 for TLS connections or 1883 otherwise.
+  MerkleKVConfigBuilder mqttPort(int port) {
+    _mqttPort = port;
+    return this;
+  }
+
+  /// Sets MQTT authentication credentials.
+  MerkleKVConfigBuilder credentials(String username, String password) {
+    _username = username;
+    _password = password;
+    return this;
+  }
+
+  /// Sets the MQTT username for authentication.
+  MerkleKVConfigBuilder username(String username) {
+    _username = username;
+    return this;
+  }
+
+  /// Sets the MQTT password for authentication.
+  MerkleKVConfigBuilder password(String password) {
+    _password = password;
+    return this;
+  }
+
+  /// Enables or disables TLS for MQTT connection.
+  MerkleKVConfigBuilder useTLS([bool enabled = true]) {
+    _mqttUseTls = enabled;
+    return this;
+  }
+
+  /// Sets the unique client identifier for MQTT connection.
+  ///
+  /// Must be between 1 and 128 characters long.
+  MerkleKVConfigBuilder clientId(String clientId) {
+    _clientId = clientId;
+    return this;
+  }
+
+  /// Sets the unique node identifier for replication.
+  ///
+  /// Must be between 1 and 128 characters long.
+  MerkleKVConfigBuilder nodeId(String nodeId) {
+    _nodeId = nodeId;
+    return this;
+  }
+
+  /// Sets the topic prefix for all MQTT topics.
+  ///
+  /// The prefix will be automatically normalized (no leading/trailing slashes).
+  /// If empty after normalization, defaults to "mkv".
+  MerkleKVConfigBuilder topicPrefix(String prefix) {
+    _topicPrefix = prefix;
+    return this;
+  }
+
+  /// Sets the MQTT keep-alive interval in seconds.
+  ///
+  /// Default: 60 seconds.
+  MerkleKVConfigBuilder keepAlive(int seconds) {
+    _keepAliveSeconds = seconds;
+    return this;
+  }
+
+  /// Sets the session expiry interval in seconds.
+  ///
+  /// Default: 86400 seconds (24 hours).
+  MerkleKVConfigBuilder sessionExpiry(int seconds) {
+    _sessionExpirySeconds = seconds;
+    return this;
+  }
+
+  /// Sets the maximum future time skew tolerance in milliseconds.
+  ///
+  /// Default: 300000 ms (5 minutes).
+  MerkleKVConfigBuilder maxFutureSkew(int milliseconds) {
+    _skewMaxFutureMs = milliseconds;
+    return this;
+  }
+
+  /// Sets the tombstone retention period in hours.
+  ///
+  /// Default: 24 hours.
+  MerkleKVConfigBuilder tombstoneRetention(int hours) {
+    _tombstoneRetentionHours = hours;
+    return this;
+  }
+
+  /// Enables or disables data persistence.
+  ///
+  /// When enabled, data will be stored to disk for durability.
+  MerkleKVConfigBuilder persistence([bool enabled = true]) {
+    _persistenceEnabled = enabled;
+    return this;
+  }
+
+  /// Sets the storage path for persistence.
+  ///
+  /// If persistence is enabled but no path is specified,
+  /// a temporary path will be generated automatically.
+  MerkleKVConfigBuilder storagePath(String path) {
+    _storagePath = path;
+    return this;
+  }
+
+  /// Enables or disables offline queue for operations.
+  ///
+  /// When enabled, operations can be queued while disconnected
+  /// and will be executed when connection is restored.
+  MerkleKVConfigBuilder offlineQueue([bool enabled = true]) {
+    _enableOfflineQueue = enabled;
+    return this;
+  }
+
+  /// Builds and returns the configured MerkleKVConfig instance.
+  ///
+  /// Validates all required parameters and applies defaults where appropriate.
+  ///
+  /// Throws [ArgumentError] if required parameters are missing or invalid.
+  MerkleKVConfig build() {
+    if (_mqttHost == null) {
+      throw ArgumentError('mqttHost is required');
+    }
+    if (_clientId == null) {
+      throw ArgumentError('clientId is required');
+    }
+    if (_nodeId == null) {
+      throw ArgumentError('nodeId is required');
+    }
+
+    return MerkleKVConfig(
+      mqttHost: _mqttHost!,
+      mqttPort: _mqttPort,
+      username: _username,
+      password: _password,
+      mqttUseTls: _mqttUseTls,
+      clientId: _clientId!,
+      nodeId: _nodeId!,
+      topicPrefix: _topicPrefix,
+      keepAliveSeconds: _keepAliveSeconds,
+      sessionExpirySeconds: _sessionExpirySeconds,
+      skewMaxFutureMs: _skewMaxFutureMs,
+      tombstoneRetentionHours: _tombstoneRetentionHours,
+      persistenceEnabled: _persistenceEnabled,
+      storagePath: _storagePath,
+    );
   }
 }
