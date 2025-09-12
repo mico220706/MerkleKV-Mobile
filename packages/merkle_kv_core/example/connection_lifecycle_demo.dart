@@ -2,8 +2,22 @@ import 'dart:async';
 
 import '../lib/src/config/merkle_kv_config.dart';
 import '../lib/src/mqtt/connection_lifecycle.dart';
+import '../lib/src/mqtt/connection_logger.dart';
 import '../lib/src/mqtt/mqtt_client_impl.dart';
 import '../lib/src/replication/metrics.dart';
+
+/// Simple console logger for demo purposes
+class DemoLogger {
+  static void info(String message) {
+    // ignore: avoid_print
+    print(message);
+  }
+  
+  static void error(String message) {
+    // ignore: avoid_print  
+    print(message);
+  }
+}
 
 /// Example demonstrating the Connection Lifecycle Manager
 /// 
@@ -11,10 +25,8 @@ import '../lib/src/replication/metrics.dart';
 /// MQTT connection management with graceful disconnection, state monitoring,
 /// and platform lifecycle integration.
 void main() async {
-  // ignore: avoid_print
-  print('🔄 Connection Lifecycle Manager Demo');
-  // ignore: avoid_print
-  print('====================================');
+  DemoLogger.info('🔄 Connection Lifecycle Manager Demo');
+  DemoLogger.info('====================================');
 
   // Create configuration
   final config = MerkleKVConfig(
@@ -31,40 +43,34 @@ void main() async {
   // Create metrics for observability
   final metrics = InMemoryReplicationMetrics();
   
-  // Create connection lifecycle manager
+  // Create connection lifecycle manager with custom logger
   final manager = DefaultConnectionLifecycleManager(
     config: config,
     mqttClient: mqttClient,
     metrics: metrics,
     maintainConnectionInBackground: true,
+    logger: const DefaultConnectionLogger(enableDebug: false), // Less verbose for demo
   );
 
   // Monitor connection state changes
   final subscription = manager.connectionState.listen((event) {
-    // ignore: avoid_print
-    print('📡 Connection State: ${event.state} - ${event.reason}');
+    DemoLogger.info('📡 Connection State: ${event.state} - ${event.reason}');
     if (event.error != null) {
-      // ignore: avoid_print
-      print('   ❌ Error: ${event.error}');
+      DemoLogger.error('   ❌ Error: ${event.error}');
     }
   });
 
   try {
-    // ignore: avoid_print
-    print('\n🚀 Connecting to MQTT broker...');
+    DemoLogger.info('\n🚀 Connecting to MQTT broker...');
     
     // Attempt connection
     try {
       await manager.connect();
-      // ignore: avoid_print
-      print('✅ Connected successfully!');
-      // ignore: avoid_print
-      print('   Connection status: ${manager.isConnected}');
+      DemoLogger.info('✅ Connected successfully!');
+      DemoLogger.info('   Connection status: ${manager.isConnected}');
     } catch (e) {
-      // ignore: avoid_print
-      print('❌ Connection failed: $e');
-      // ignore: avoid_print
-      print('   (This is expected if no MQTT broker is running)');
+      DemoLogger.error('❌ Connection failed: $e');
+      DemoLogger.info('   (This is expected if no MQTT broker is running)');
       return;
     }
 

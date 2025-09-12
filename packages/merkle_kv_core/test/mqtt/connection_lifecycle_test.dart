@@ -7,6 +7,16 @@ import '../../lib/src/mqtt/connection_state.dart';
 import '../../lib/src/mqtt/mqtt_client_interface.dart';
 import '../../lib/src/replication/metrics.dart';
 
+// Test timing constants to improve readability and maintainability
+class TestTimings {
+  static const subscriptionDelay = Duration(milliseconds: 20);
+  static const eventProcessingDelay = Duration(milliseconds: 100);
+  static const smallDelay = Duration(milliseconds: 10);
+  static const longDelay = Duration(seconds: 15);
+  static const shortTimeout = Duration(seconds: 3);
+  static const timeoutWindow = Duration(seconds: 1);
+}
+
 /// Mock MQTT client for testing.
 class MockMqttClient implements MqttClientInterface {
   StreamController<ConnectionState>? _stateController;
@@ -180,12 +190,12 @@ void main() {
         });
 
         // Wait for subscription to be fully active
-        await Future.delayed(Duration(milliseconds: 20));
+        await Future.delayed(TestTimings.subscriptionDelay);
 
         await manager.connect();
 
         // Wait for all events to be processed and captured
-        await Future.delayed(Duration(milliseconds: 100));
+        await Future.delayed(TestTimings.eventProcessingDelay);
 
         print('Total events received: ${events.length}');
         for (int i = 0; i < events.length; i++) {
@@ -222,7 +232,7 @@ void main() {
         });
 
         // Wait for subscription to be fully active
-        await Future.delayed(Duration(milliseconds: 20));
+        await Future.delayed(TestTimings.subscriptionDelay);
 
         await expectLater(
           manager.connect(),
@@ -230,7 +240,7 @@ void main() {
         );
 
         // Wait for all events to be processed
-        await Future.delayed(Duration(milliseconds: 100));
+        await Future.delayed(TestTimings.eventProcessingDelay);
 
         print('Failure test total events received: ${events.length}');
         for (int i = 0; i < events.length; i++) {
@@ -257,7 +267,7 @@ void main() {
       });
 
       test('connection timeout is handled properly', () async {
-        mockClient.connectDelay = Duration(seconds: 15); // Longer than timeout
+        mockClient.connectDelay = TestTimings.longDelay; // Longer than timeout
         
         final events = <ConnectionStateEvent>[];
         final subscription = manager.connectionState.listen((event) {
@@ -266,7 +276,7 @@ void main() {
         });
 
         // Wait for subscription to be active
-        await Future.delayed(Duration(milliseconds: 20));
+        await Future.delayed(TestTimings.subscriptionDelay);
 
         // Connection should throw timeout exception
         await expectLater(
@@ -275,7 +285,7 @@ void main() {
         );
 
         // Wait for all events to be processed
-        await Future.delayed(Duration(milliseconds: 100));
+        await Future.delayed(TestTimings.eventProcessingDelay);
 
         print('Timeout test total events received: ${events.length}');
         for (int i = 0; i < events.length; i++) {
@@ -340,7 +350,7 @@ void main() {
       });
 
       test('disconnection timeout is handled', () async {
-        mockClient.disconnectDelay = Duration(seconds: 15);
+        mockClient.disconnectDelay = TestTimings.longDelay;
         
         final events = <ConnectionStateEvent>[];
         final subscription = manager.connectionState.listen(events.add);
@@ -468,13 +478,13 @@ void main() {
 
         // Simulate direct MQTT state changes
         mockClient.setState(ConnectionState.connecting);
-        await Future.delayed(Duration(milliseconds: 10));
+        await Future.delayed(TestTimings.smallDelay);
         
         mockClient.setState(ConnectionState.connected);
-        await Future.delayed(Duration(milliseconds: 10));
+        await Future.delayed(TestTimings.smallDelay);
         
         mockClient.setState(ConnectionState.disconnected);
-        await Future.delayed(Duration(milliseconds: 10));
+        await Future.delayed(TestTimings.smallDelay);
 
         expect(events.length, greaterThanOrEqualTo(3));
         expect(events.map((e) => e.state), contains(ConnectionState.connecting));
@@ -492,7 +502,7 @@ void main() {
 
         for (final event in events) {
           expect(event.timestamp, isNotNull);
-          expect(event.timestamp.isBefore(DateTime.now().add(Duration(seconds: 1))), isTrue);
+          expect(event.timestamp.isBefore(DateTime.now().add(TestTimings.timeoutWindow)), isTrue);
         }
         
         await subscription.cancel();
@@ -518,7 +528,7 @@ void main() {
           await expectLater(manager.connect(), throwsA(isA<Exception>()));
           
           // Wait a bit for events to be processed
-          await Future.delayed(Duration(milliseconds: 10));
+          await Future.delayed(TestTimings.smallDelay);
           
           // Find error events (should have non-null error field)
           final errorEvents = events.where((e) => e.error != null);
@@ -602,7 +612,7 @@ void main() {
         
         // Should not emit any more events
         mockClient.setState(ConnectionState.connected);
-        await Future.delayed(Duration(milliseconds: 10));
+        await Future.delayed(TestTimings.smallDelay);
         
         // Events stream should be closed
         expect(subscription.isPaused, isFalse); // Stream is closed, not paused
@@ -631,7 +641,7 @@ void main() {
           metrics: metrics,
         );
         
-        mockClient.connectDelay = Duration(seconds: 3); // Longer than timeout
+        mockClient.connectDelay = TestTimings.shortTimeout; // Longer than timeout
         
         await expectLater(
           shortManager.connect(),

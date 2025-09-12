@@ -1,4 +1,15 @@
-import 'dart:async';
+import 'da# Integration test timing constants
+class IntegrationTestTimings {
+  static const brokerConnectTimeout = Duration(seconds: 5);
+  static const stateUpdateDelay = Duration(milliseconds: 50);
+  static const disconnectionDelay = Duration(milliseconds: 100);
+  static const stabilityWait = Duration(seconds: 2);
+  static const briefDelay = Duration(milliseconds: 100);
+  static const maxConnectionTime = Duration(seconds: 5);
+  static const veryLongConnectionTime = Duration(seconds: 10);
+  static const averageConnectionTimeLimit = 3000; // milliseconds
+  static const maxSingleConnectionTime = 10000; // milliseconds
+}
 import 'dart:io';
 import 'package:test/test.dart';
 
@@ -7,6 +18,17 @@ import '../../lib/src/mqtt/connection_lifecycle.dart';
 import '../../lib/src/mqtt/connection_state.dart';
 import '../../lib/src/mqtt/mqtt_client_impl.dart';
 import '../../lib/src/replication/metrics.dart';
+
+// Integration test timing constants
+class IntegrationTestTimings {
+  static const brokerConnectTimeout = Duration(seconds: 5);
+  static const stateUpdateDelay = Duration(milliseconds: 50);
+  static const disconnectionDelay = Duration(milliseconds: 100);
+  static const stabilityWait = Duration(seconds: 2);
+  static const briefDelay = Duration(milliseconds: 100);
+  static const maxConnectionTime = Duration(seconds: 5);
+  static const veryLongConnectionTime = Duration(seconds: 10);
+}
 
 /// Integration tests for ConnectionLifecycleManager with real MQTT broker.
 /// 
@@ -31,7 +53,7 @@ void main() {
     setUpAll(() async {
       // Verify broker is accessible
       try {
-        final socket = await Socket.connect(host, port, timeout: Duration(seconds: 5));
+        final socket = await Socket.connect(host, port, timeout: IntegrationTestTimings.brokerConnectTimeout);
         await socket.close();
       } catch (e) {
         print('MQTT broker not available at $host:$port');
@@ -80,10 +102,10 @@ void main() {
           stopwatch.stop();
 
           // Add small delay to ensure state is updated
-          await Future.delayed(Duration(milliseconds: 50));
+          await Future.delayed(IntegrationTestTimings.stateUpdateDelay);
 
           expect(manager.isConnected, isTrue);
-          expect(stopwatch.elapsedMilliseconds, lessThan(5000)); // Should connect within 5s
+          expect(stopwatch.elapsedMilliseconds, lessThan(IntegrationTestTimings.maxConnectionTime.inMilliseconds)); // Should connect within 5s
 
           // Verify connection events
           expect(events.any((e) => e.state == ConnectionState.connecting), isTrue);
@@ -93,7 +115,7 @@ void main() {
           await manager.disconnect(suppressLWT: true);
           
           // Add delay to ensure disconnection is processed
-          await Future.delayed(Duration(milliseconds: 100));
+          await Future.delayed(IntegrationTestTimings.disconnectionDelay);
           
           expect(manager.isConnected, isFalse);
 
@@ -142,7 +164,7 @@ void main() {
           );
 
           // Wait a moment for events to be processed
-          await Future.delayed(Duration(milliseconds: 100));
+          await Future.delayed(IntegrationTestTimings.briefDelay);
 
           expect(manager.isConnected, isFalse);
 
@@ -208,7 +230,7 @@ void main() {
           await manager.disconnect();
           
           // Add small delay to ensure state is processed
-          await Future.delayed(Duration(milliseconds: 100));
+          await Future.delayed(IntegrationTestTimings.briefDelay);
 
           // Verify disconnection was handled
           final disconnectedEvents = events.where(
@@ -272,8 +294,8 @@ void main() {
         print('Average connection time: ${avgTiming.toStringAsFixed(1)} ms');
 
         // Should connect within reasonable time
-        expect(avgTiming, lessThan(3000)); // Average under 3 seconds
-        expect(timings.every((t) => t < 10000), isTrue); // All under 10 seconds
+        expect(avgTiming, lessThan(IntegrationTestTimings.averageConnectionTimeLimit)); // Average under 3 seconds
+        expect(timings.every((t) => t < IntegrationTestTimings.maxSingleConnectionTime), isTrue); // All under 10 seconds
       });
 
       test('rapid connect/disconnect cycles', () async {
@@ -297,13 +319,13 @@ void main() {
             expect(manager.isConnected, isTrue);
 
             // Brief connected period
-            await Future.delayed(Duration(milliseconds: 100));
+            await Future.delayed(IntegrationTestTimings.briefDelay);
 
             await manager.disconnect();
             expect(manager.isConnected, isFalse);
 
             // Brief disconnected period
-            await Future.delayed(Duration(milliseconds: 100));
+            await Future.delayed(IntegrationTestTimings.briefDelay);
           }
 
           // Should end in consistent state
@@ -372,7 +394,7 @@ void main() {
           expect(manager.isConnected, isTrue);
 
           // Wait a bit to ensure connection stability
-          await Future.delayed(Duration(seconds: 2));
+          await Future.delayed(IntegrationTestTimings.stabilityWait);
           expect(manager.isConnected, isTrue);
 
           // Simulate app resuming
@@ -452,7 +474,7 @@ void main() {
           expect(manager.isConnected, isTrue);
 
           // Simulate some activity
-          await Future.delayed(Duration(milliseconds: 100));
+          await Future.delayed(IntegrationTestTimings.briefDelay);
 
           await manager.dispose();
           
@@ -531,7 +553,7 @@ void main() {
 /// Check if MQTT broker is available for testing.
 Future<bool> _brokerAvailable(String host, int port) async {
   try {
-    final socket = await Socket.connect(host, port, timeout: Duration(seconds: 2));
+    final socket = await Socket.connect(host, port, timeout: IntegrationTestTimings.stabilityWait);
     await socket.close();
     return true;
   } catch (e) {

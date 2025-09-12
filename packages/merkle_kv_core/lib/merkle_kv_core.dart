@@ -16,6 +16,7 @@ export 'src/mqtt/mqtt_client_impl.dart';
 export 'src/mqtt/topic_scheme.dart';
 export 'src/mqtt/topic_router.dart';
 export 'src/mqtt/connection_lifecycle.dart';
+export 'src/mqtt/connection_logger.dart';
 
 // Commands and Correlation
 export 'src/commands/command.dart';

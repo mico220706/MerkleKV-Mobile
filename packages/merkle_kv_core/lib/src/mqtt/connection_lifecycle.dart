@@ -2,6 +2,7 @@ import 'dart:async';
 
 import '../config/merkle_kv_config.dart';
 import '../replication/metrics.dart';
+import 'connection_logger.dart';
 import 'connection_state.dart';
 import 'mqtt_client_interface.dart';
 
@@ -110,6 +111,8 @@ class DefaultConnectionLifecycleManager implements ConnectionLifecycleManager {
   final MerkleKVConfig _config;
   final MqttClientInterface _mqttClient;
   final ReplicationMetrics? _metrics;
+  final ConnectionLogger _logger;
+  final Duration _disconnectionTimeout;
 
   final StreamController<ConnectionStateEvent> _stateController =
       StreamController<ConnectionStateEvent>.broadcast();
@@ -130,14 +133,20 @@ class DefaultConnectionLifecycleManager implements ConnectionLifecycleManager {
   /// [config] - MerkleKV configuration
   /// [mqttClient] - MQTT client implementation
   /// [metrics] - Optional metrics collector
+  /// [logger] - Optional logger for connection events (defaults to console output)
+  /// [disconnectionTimeout] - Timeout for disconnection operations (defaults to 10 seconds)
   DefaultConnectionLifecycleManager({
     required MerkleKVConfig config,
     required MqttClientInterface mqttClient,
     ReplicationMetrics? metrics,
     bool maintainConnectionInBackground = true,
+    ConnectionLogger? logger,
+    Duration? disconnectionTimeout,
   })  : _config = config,
         _mqttClient = mqttClient,
         _metrics = metrics,
+        _logger = logger ?? const DefaultConnectionLogger(),
+        _disconnectionTimeout = disconnectionTimeout ?? const Duration(seconds: 10),
         _maintainConnectionInBackground = maintainConnectionInBackground {
     _initializeStateMonitoring();
   }
@@ -164,7 +173,7 @@ class DefaultConnectionLifecycleManager implements ConnectionLifecycleManager {
       return;
     }
 
-    _log('Starting connection to ${_config.mqttHost}:${_config.mqttPort}');
+    _logger.info('Starting connection to ${_config.mqttHost}:${_config.mqttPort}');
     _connectionStartTime = DateTime.now();
     
     _updateState(
@@ -183,7 +192,7 @@ class DefaultConnectionLifecycleManager implements ConnectionLifecycleManager {
       );
       
       final duration = DateTime.now().difference(_connectionStartTime!);
-      _log('Connected successfully in ${duration.inMilliseconds}ms');
+      _logger.info('Connected successfully in ${duration.inMilliseconds}ms');
       
       _metrics?.recordConnectionLifecycleEvent('connection_established');
       _metrics?.recordConnectionDurationMetric(duration.inSeconds.toDouble());
@@ -194,7 +203,7 @@ class DefaultConnectionLifecycleManager implements ConnectionLifecycleManager {
       );
     } catch (e) {
       final reason = _categorizeConnectionError(e);
-      _log('Connection failed: $reason - $e');
+      _logger.error('Connection failed: $reason', e);
       
       _metrics?.recordConnectionLifecycleEvent('connection_failed');
       _metrics?.recordDisconnectionReasonMetric(reason);
@@ -216,7 +225,7 @@ class DefaultConnectionLifecycleManager implements ConnectionLifecycleManager {
       return;
     }
 
-    _log('Starting graceful disconnection (suppressLWT: $suppressLWT)');
+    _logger.info('Starting graceful disconnection (suppressLWT: $suppressLWT)');
     
     _updateState(
       ConnectionState.disconnecting,
@@ -225,7 +234,7 @@ class DefaultConnectionLifecycleManager implements ConnectionLifecycleManager {
 
     // Set disconnection timeout
     _disconnectionTimeoutTimer = Timer(
-      const Duration(seconds: 10),
+      _disconnectionTimeout,
       () => _handleDisconnectionTimeout(),
     );
 
@@ -234,14 +243,14 @@ class DefaultConnectionLifecycleManager implements ConnectionLifecycleManager {
       await _performResourceCleanup();
       
       if (suppressLWT) {
-        _log('Suppressing Last Will and Testament');
+        _logger.debug('Suppressing Last Will and Testament');
         _metrics?.recordConnectionLifecycleEvent('lwt_suppressed');
       }
 
       await _mqttClient.disconnect(suppressLWT: suppressLWT);
       _disconnectionTimeoutTimer?.cancel();
       
-      _log('Disconnected successfully');
+      _logger.info('Disconnected successfully');
       _metrics?.recordConnectionLifecycleEvent('disconnection_completed');
       _metrics?.recordDisconnectionReasonMetric(DisconnectionReason.manual);
       
@@ -252,7 +261,7 @@ class DefaultConnectionLifecycleManager implements ConnectionLifecycleManager {
     } catch (e) {
       _disconnectionTimeoutTimer?.cancel();
       
-      _log('Disconnection error: $e');
+      _logger.error('Disconnection error', e);
       _metrics?.recordConnectionLifecycleEvent('disconnection_failed');
       
       // Force state to disconnected even on error
@@ -266,7 +275,7 @@ class DefaultConnectionLifecycleManager implements ConnectionLifecycleManager {
 
   @override
   Future<void> handleAppStateChange(AppLifecycleState state) async {
-    _log('App lifecycle state changed to: $state');
+    _logger.debug('App lifecycle state changed to: $state');
     
     switch (state) {
       case AppLifecycleState.paused:
@@ -289,7 +298,7 @@ class DefaultConnectionLifecycleManager implements ConnectionLifecycleManager {
   /// Handle MQTT client state changes.
   void _handleMqttStateChange(ConnectionState state) {
     if (state != _currentState) {
-      _log('MQTT client state changed: $_currentState → $state');
+      _logger.debug('MQTT client state changed: $_currentState → $state');
       
       switch (state) {
         case ConnectionState.connected:
@@ -312,7 +321,7 @@ class DefaultConnectionLifecycleManager implements ConnectionLifecycleManager {
   Future<void> _handleAppBackgrounding() async {
     _stateBeforeBackground = _currentState;
     
-    _log('App backgrounding, maintain connection: $_maintainConnectionInBackground');
+    _logger.debug('App backgrounding, maintain connection: $_maintainConnectionInBackground');
     _metrics?.recordConnectionLifecycleEvent('app_backgrounded');
     
     if (!_maintainConnectionInBackground && isConnected) {
@@ -322,7 +331,7 @@ class DefaultConnectionLifecycleManager implements ConnectionLifecycleManager {
 
   /// Handle app resuming from background.
   Future<void> _handleAppResuming() async {
-    _log('App resuming from background');
+    _logger.debug('App resuming from background');
     _metrics?.recordConnectionLifecycleEvent('app_resumed');
     
     // Reconnect if we were connected before backgrounding
@@ -332,7 +341,7 @@ class DefaultConnectionLifecycleManager implements ConnectionLifecycleManager {
       try {
         await connect();
       } catch (e) {
-        _log('Failed to reconnect on app resume: $e');
+        _logger.warn('Failed to reconnect on app resume: $e');
       }
     }
     
@@ -341,7 +350,7 @@ class DefaultConnectionLifecycleManager implements ConnectionLifecycleManager {
 
   /// Handle connection timeout.
   void _handleConnectionTimeout() {
-    _log('Connection timeout reached');
+    _logger.warn('Connection timeout reached');
     _metrics?.recordConnectionLifecycleEvent('connection_timeout');
     _metrics?.recordDisconnectionReasonMetric(DisconnectionReason.timeout);
     
@@ -354,7 +363,7 @@ class DefaultConnectionLifecycleManager implements ConnectionLifecycleManager {
 
   /// Handle disconnection timeout.
   void _handleDisconnectionTimeout() {
-    _log('Disconnection timeout reached');
+    _logger.warn('Disconnection timeout reached');
     _metrics?.recordConnectionLifecycleEvent('disconnection_timeout');
     
     // Force disconnected state
@@ -367,7 +376,7 @@ class DefaultConnectionLifecycleManager implements ConnectionLifecycleManager {
 
   /// Perform comprehensive resource cleanup.
   Future<void> _performResourceCleanup() async {
-    _log('Performing resource cleanup');
+    _logger.debug('Performing resource cleanup');
     
     try {
       // Clean up active subscriptions
@@ -377,7 +386,7 @@ class DefaultConnectionLifecycleManager implements ConnectionLifecycleManager {
           await _mqttClient.unsubscribe(topic);
           _activeSubscriptions.remove(topic);
         } catch (e) {
-          _log('Failed to unsubscribe from $topic: $e');
+          _logger.warn('Failed to unsubscribe from $topic: $e');
         }
       }
       
@@ -395,9 +404,9 @@ class DefaultConnectionLifecycleManager implements ConnectionLifecycleManager {
       // Clear any authentication material from memory
       // (This would be handled by the MQTT client implementation)
       
-      _log('Resource cleanup completed');
+      _logger.debug('Resource cleanup completed');
     } catch (e) {
-      _log('Error during resource cleanup: $e');
+      _logger.error('Error during resource cleanup', e);
       throw Exception('Resource cleanup failed: $e');
     }
   }
@@ -420,7 +429,7 @@ class DefaultConnectionLifecycleManager implements ConnectionLifecycleManager {
     _stateController.add(event);
     _metrics?.recordConnectionStateChangeMetric(newState.toString());
     
-    _log('State updated: ${event.state} - ${event.reason}');
+    _logger.debug('State updated: ${event.state} - ${event.reason}');
   }
 
   /// Categorize connection errors for observability.
@@ -440,17 +449,9 @@ class DefaultConnectionLifecycleManager implements ConnectionLifecycleManager {
     }
   }
 
-  /// Log message with debug output (should be replaced with proper logging in production).
-  void _log(String message) {
-    // In production, this should use a proper logging framework
-    // For now, using print for debugging purposes
-    // ignore: avoid_print
-    print('[${DateTime.now().toIso8601String()}] ConnectionLifecycle: $message');
-  }
-
   @override
   Future<void> dispose() async {
-    _log('Disposing connection lifecycle manager');
+    _logger.info('Disposing connection lifecycle manager');
     
     // Update state to disconnected if currently connected
     if (_currentState != ConnectionState.disconnected) {
@@ -474,7 +475,7 @@ class DefaultConnectionLifecycleManager implements ConnectionLifecycleManager {
     // Close state controller
     await _stateController.close();
     
-    _log('Connection lifecycle manager disposed');
+    _logger.info('Connection lifecycle manager disposed');
   }
 }
 
