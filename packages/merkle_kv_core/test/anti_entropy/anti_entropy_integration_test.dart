@@ -221,15 +221,27 @@ void main() {
       
       try {
         print('Starting sync request (should be rate limited immediately)...');
-        final result = await protocol1.performSync('node2');
-        print('Request completed unexpectedly - no rate limiting occurred');
-        print('Result: success=${result.success}, error=${result.errorCode}');
+        // Add timeout to prevent hanging
+        final result = await protocol1.performSync('node2').timeout(
+          Duration(seconds: 5),
+          onTimeout: () => SyncResult.failure(
+            errorCode: SyncErrorCode.timeout,
+            errorMessage: 'Test timeout - this is expected if rate limiting prevents the sync',
+            duration: Duration(seconds: 5),
+          ),
+        );
+        print('Request completed with result: ${result.toString()}');
         
         // If we get here, check if the result indicates rate limiting
         if (!result.success && result.errorCode == SyncErrorCode.rateLimited) {
           rateLimitCaught = true;
           actualException = 'SyncResult with rateLimited error code';
           print('Rate limiting detected via result error code!');
+        } else if (!result.success && result.errorCode == SyncErrorCode.timeout) {
+          print('Request timed out as expected');
+          actualException = result.errorMessage;
+        } else {
+          print('Request completed unexpectedly without rate limiting');
         }
       } catch (e) {
         caughtException = e;
@@ -246,7 +258,7 @@ void main() {
       print('actualException: $actualException');
       print('caughtException type: ${caughtException?.runtimeType}');
       
-      // Accept either exception-based or result-based rate limiting
+      // Accept either exception-based or result-based rate limiting, OR metrics indicating rate limiting occurred
       expect(rateLimitCaught || metrics1.antiEntropyRateLimitHits > 0, isTrue, 
           reason: 'Expected rate limiting (either exception or metrics hit). Metrics hits: ${metrics1.antiEntropyRateLimitHits}, Exception: $actualException');
     });
