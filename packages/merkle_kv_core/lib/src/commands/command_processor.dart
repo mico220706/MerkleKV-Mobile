@@ -1,8 +1,10 @@
 import 'dart:convert';
 
 import '../config/merkle_kv_config.dart';
+import '../models/key_value_result.dart';
 import '../storage/storage_interface.dart';
 import '../storage/storage_entry.dart';
+import '../utils/bulk_operations.dart';
 import '../utils/numeric_operations.dart';
 import '../utils/string_operations.dart';
 import 'command.dart';
@@ -36,6 +38,12 @@ abstract class CommandProcessor {
 
   /// Prepends a value to the beginning of existing string. 
   Future<Response> prepend(String key, String value, String id);
+
+  /// Retrieves multiple keys in a single operation. 
+  Future<Response> mget(List<String> keys, String id);
+
+  /// Sets multiple key-value pairs in a single operation. 
+  Future<Response> mset(Map<String, String> keyValues, String id);
 }
 
 /// Cache entry for idempotent request handling.
@@ -72,13 +80,19 @@ class CommandProcessorImpl implements CommandProcessor {
 
   @override
   Future<Response> processCommand(Command command) async {
-    // Check idempotency cache first
-    if (command.id.isNotEmpty) {
-      final cachedResponse = _getCachedResponse(command.id);
-      if (cachedResponse != null) {
-        return cachedResponse;
-      }
+  // Check payload size first for all commands
+  final jsonPayload = command.toJsonString();
+  if (!BulkOperations.isPayloadWithinSizeLimit(jsonPayload)) {
+    return Response.payloadTooLarge(command.id);
+  }
+
+  // Check idempotency cache
+  if (command.id.isNotEmpty) {
+    final cachedResponse = _getCachedResponse(command.id);
+    if (cachedResponse != null) {
+      return cachedResponse;
     }
+  }
 
     Response response;
     try {
@@ -177,6 +191,38 @@ class CommandProcessorImpl implements CommandProcessor {
             response = await prepend(command.key!, command.value.toString(), command.id);
           }
           break;
+        case 'MGET':  
+          if (command.keys == null) {
+            response = Response.invalidRequest(
+                command.id, 'Missing keys for MGET operation');
+          } else {
+            final validation = BulkOperations.validateMgetKeys(command.keys);
+            if (validation != null) {
+              response = Response.invalidRequest(command.id, validation);
+            } else {
+              response = await mget(command.keys!, command.id);
+            }
+          }
+          break;
+        case 'MSET':  
+          if (command.keyValues == null) {
+            response = Response.invalidRequest(
+                command.id, 'Missing keyValues for MSET operation');
+          } else {
+            // Convert dynamic values to strings
+            final stringKeyValues = <String, String>{};
+            for (final entry in command.keyValues!.entries) {
+              stringKeyValues[entry.key] = entry.value.toString();
+            }
+            
+            final validation = BulkOperations.validateMsetPairs(stringKeyValues);
+            if (validation != null) {
+              response = Response.invalidRequest(command.id, validation);
+            } else {
+              response = await mset(stringKeyValues, command.id);
+            }
+          }
+          break;
         default:
           response = Response.invalidRequest(
             command.id,
@@ -195,6 +241,7 @@ class CommandProcessorImpl implements CommandProcessor {
       error: response.error,
       errorCode: response.errorCode,
       metadata: response.metadata,
+      results: response.results,
     );
 
     // Cache successful responses
@@ -291,6 +338,109 @@ class CommandProcessorImpl implements CommandProcessor {
   Future<Response> prepend(String key, String value, String id) async {
     return await _performStringOperation(key, value, false, id);
   }
+
+  @override
+Future<Response> mget(List<String> keys, String id) async {
+  final results = <KeyValueResult>[];
+
+  // Process keys in submission order
+  for (final key in keys) {
+    try {
+      // Validate individual key size
+      final keyBytes = utf8.encode(key);
+      if (keyBytes.length > _maxKeyBytes) {
+        results.add(KeyValueResult.error(
+          key,
+          ErrorCode.payloadTooLarge,
+          'Key too large',
+        ));
+        continue;
+      }
+
+      // Get value from storage
+      final entry = await _storage.get(key);
+      if (entry == null || entry.isTombstone) {
+        results.add(KeyValueResult.notFound(key));
+      } else {
+        results.add(KeyValueResult.ok(key, entry.value));
+      }
+    } catch (e) {
+      results.add(KeyValueResult.error(
+        key,
+        ErrorCode.internalError,
+        'Storage error: $e',
+      ));
+    }
+  }
+
+  return Response.bulk(id: id, results: results);
+}
+
+@override
+Future<Response> mset(Map<String, String> keyValues, String id) async {
+  final results = <KeyValueResult>[];
+  
+  // Process pairs in submission order (maintain map iteration order)
+  final entries = keyValues.entries.toList();
+  
+  for (final entry in entries) {
+    final key = entry.key;
+    final value = entry.value;
+    
+    try {
+      // Validate key size
+      final keyBytes = utf8.encode(key);
+      if (keyBytes.length > _maxKeyBytes) {
+        results.add(KeyValueResult.error(
+          key,
+          ErrorCode.payloadTooLarge,
+          'Key too large',
+        ));
+        continue;
+      }
+
+      // Validate value size
+      final valueBytes = utf8.encode(value);
+      if (valueBytes.length > _maxValueBytes) {
+        results.add(KeyValueResult.error(
+          key,
+          ErrorCode.payloadTooLarge,
+          'Value too large',
+        ));
+        continue;
+      }
+
+      // Generate version vector
+      final timestampMs = DateTime.now().millisecondsSinceEpoch;
+      final seq = _nextSequenceNumber();
+
+      final storageEntry = StorageEntry.value(
+        key: key,
+        value: value,
+        timestampMs: timestampMs,
+        nodeId: _config.nodeId,
+        seq: seq,
+      );
+
+      // Store the value
+      await _storage.put(key, storageEntry);
+      
+      // Generate replication event (one per successful key)
+      // await _emitReplicationEvent(storageEntry, 'SET');
+      
+      results.add(KeyValueResult.ok(key, null)); // MSET doesn't return values
+      
+    } catch (e) {
+      results.add(KeyValueResult.error(
+        key,
+        ErrorCode.internalError,
+        'Storage error: $e',
+      ));
+    }
+  }
+
+  return Response.bulk(id: id, results: results);
+}
 
   Future<Response> _performNumericOperation(
     String key,

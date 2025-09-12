@@ -27,6 +27,13 @@ abstract class StorageInterface {
   /// Throws [ArgumentError] if size constraints are violated.
   Future<void> put(String key, StorageEntry entry);
 
+  /// Stores an entry during reconciliation with loop prevention.
+  ///
+  /// Same as [put] but marks the operation as reconciliation to prevent
+  /// generating replication events, avoiding synchronization loops.
+  /// Used by anti-entropy protocol during SYNC_KEYS operations.
+  Future<void> putWithReconciliation(String key, StorageEntry entry);
+
   /// Creates a tombstone for the specified key.
   ///
   /// Writes a tombstone entry with the given version vector.
