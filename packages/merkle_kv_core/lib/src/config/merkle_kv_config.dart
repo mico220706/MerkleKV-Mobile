@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'invalid_config_exception.dart';
+import '../mqtt/topic_validator.dart';
 
 /// Centralized, immutable configuration for MerkleKV Mobile client.
 ///
@@ -228,18 +229,22 @@ class MerkleKVConfig {
       );
     }
 
-    // Validate clientId
-    if (clientId.isEmpty || clientId.length > 128) {
-      throw const InvalidConfigException(
-        'Client ID must be between 1 and 128 characters',
+    // Validate clientId using enhanced validation
+    try {
+      TopicValidator.validateClientId(clientId);
+    } catch (e) {
+      throw InvalidConfigException(
+        'Invalid client ID: ${e.toString().replaceFirst('ArgumentError: ', '')}',
         'clientId',
       );
     }
 
-    // Validate nodeId
-    if (nodeId.isEmpty || nodeId.length > 128) {
-      throw const InvalidConfigException(
-        'Node ID must be between 1 and 128 characters',
+    // Validate nodeId using similar rules as clientId
+    try {
+      TopicValidator.validateClientId(nodeId);
+    } catch (e) {
+      throw InvalidConfigException(
+        'Invalid node ID: ${e.toString().replaceFirst('ArgumentError: ', '')}',
         'nodeId',
       );
     }
@@ -282,25 +287,15 @@ class MerkleKVConfig {
       );
     }
 
-    // Normalize topic prefix
-    String normalizedPrefix = topicPrefix.trim();
-    if (normalizedPrefix.startsWith('/')) {
-      normalizedPrefix = normalizedPrefix.substring(1);
-    }
-    if (normalizedPrefix.endsWith('/')) {
-      normalizedPrefix = normalizedPrefix.substring(
-        0,
-        normalizedPrefix.length - 1,
-      );
-    }
-    if (normalizedPrefix.contains(' ')) {
-      throw const InvalidConfigException(
-        'Topic prefix cannot contain spaces',
+    // Normalize and validate topic prefix using enhanced validation
+    String normalizedPrefix = TopicValidator.normalizePrefix(topicPrefix);
+    try {
+      TopicValidator.validatePrefix(normalizedPrefix);
+    } catch (e) {
+      throw InvalidConfigException(
+        'Invalid topic prefix: ${e.toString().replaceFirst('ArgumentError: ', '')}',
         'topicPrefix',
       );
-    }
-    if (normalizedPrefix.isEmpty) {
-      normalizedPrefix = 'mkv';
     }
 
     // Security warning for credentials without TLS

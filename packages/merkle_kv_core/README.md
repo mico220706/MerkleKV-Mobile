@@ -4,6 +4,14 @@ A distributed key-value store optimized for mobile edge devices with MQTT-based 
 
 ## Features
 
+### Topic Prefix Configuration & Multi-Tenant Isolation
+- **UTF-8 Byte Length Validation**: Prefixes ≤50 bytes, Client IDs ≤128 bytes, Topics ≤100 bytes
+- **Character Restrictions**: Only `[A-Za-z0-9_/-]` allowed, blocks MQTT wildcards
+- **Multi-Tenant Support**: Prefix-based isolation with canonical topic schemes
+- **Backward Compatibility**: Enhanced validation without breaking existing APIs
+- **Comprehensive Validation**: Integrated into MerkleKVConfig and TopicScheme
+- See [Topic Validation Guide](README_TOPIC_VALIDATION.md) for complete documentation
+
 ### Anti-Entropy Protocol
 - **SYNC/SYNC_KEYS Operations**: Efficient state synchronization between nodes
 - **Payload Validation**: 512KiB size limits with precise overhead calculation

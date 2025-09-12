@@ -5,6 +5,7 @@ import '../config/merkle_kv_config.dart';
 import 'connection_state.dart';
 import 'mqtt_client_interface.dart';
 import 'topic_scheme.dart';
+import 'topic_validator.dart';
 
 /// Abstract interface for topic-based message routing.
 ///
@@ -133,10 +134,11 @@ class TopicRouterImpl implements TopicRouter {
 
   @override
   Future<void> publishCommand(String targetClientId, String payload) async {
-    // Validate target client ID with same rules as our client ID
-    TopicScheme.validateClientId(targetClientId);
-
-    final targetTopic = '${_topicScheme.prefix}/$targetClientId/cmd';
+    // Use TopicValidator for enhanced validation and consistent topic building
+    final targetTopic = TopicValidator.buildCommandTopic(
+      _topicScheme.prefix, 
+      targetClientId,
+    );
 
     await _mqttClient.publish(
       targetTopic,
