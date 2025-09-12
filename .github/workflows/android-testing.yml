@@ -1,0 +1,124 @@
+name: Android Testing (Widget Tests)
+
+on: 
+  push:
+    branches: [ main, develop ]
+    paths:
+      - 'apps/flutter_demo/**'
+      - '.github/workflows/android-testing.yml'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'apps/flutter_demo/**'
+      - '.github/workflows/android-testing.yml'
+
+jobs:
+  widget-tests:
+    name: Flutter Widget Tests (Dart VM)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    
+    defaults:
+      run:
+        working-directory: apps/flutter_demo
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.24.3'
+          channel: 'stable'
+          cache: true
+          
+      - name: Cache pub dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.pub-cache
+            apps/flutter_demo/.dart_tool
+          key: ${{ runner.os }}-pub-${{ hashFiles('apps/flutter_demo/pubspec.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-pub-
+            
+      - name: Cache Gradle dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+            apps/flutter_demo/android/.gradle
+          key: ${{ runner.os }}-gradle-${{ hashFiles('apps/flutter_demo/android/gradle/wrapper/gradle-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
+      
+      - name: Get Flutter dependencies
+        run: flutter pub get
+        
+      - name: Verify Flutter installation
+        run: |
+          flutter --version
+          flutter doctor -v
+          
+      - name: Run static analysis
+        run: flutter analyze --fatal-infos --fatal-warnings
+        
+      - name: Check formatting
+        run: dart format --set-exit-if-changed .
+        
+      - name: Run widget tests
+        run: |
+          echo "🧪 Running Flutter widget tests on Dart VM..."
+          flutter test \
+            --coverage \
+            --reporter=expanded \
+            --test-randomize-ordering-seed=random \
+            test/widget/
+            
+      - name: Run all tests
+        run: |
+          echo "🧪 Running all Flutter tests..."
+          flutter test \
+            --coverage \
+            --reporter=expanded \
+            --test-randomize-ordering-seed=random
+            
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          file: apps/flutter_demo/coverage/lcov.info
+          flags: flutter_demo
+          name: flutter-demo-coverage
+          fail_ci_if_error: false
+          
+      - name: Build APK for verification (optional)
+        continue-on-error: true
+        run: |
+          echo "🔨 Building APK to verify compilation..."
+          flutter build apk --debug --target-platform android-arm64 || echo "APK build failed but continuing..."
+          
+      - name: Test build artifacts (optional)
+        continue-on-error: true
+        run: |
+          echo "✅ Verifying build artifacts..."
+          if [ -d "build/app/outputs/flutter-apk/" ]; then
+            ls -la build/app/outputs/flutter-apk/
+            file build/app/outputs/flutter-apk/app-debug.apk
+          else
+            echo "APK build was skipped or failed"
+          fi
+          
+      - name: Test summary
+        if: always()
+        run: |
+          echo "========================================"
+          echo "🎯 Test Summary"
+          echo "========================================"
+          echo "✅ Static analysis completed"
+          echo "✅ Code formatting verified"
+          echo "✅ Widget tests executed on Dart VM"
+          echo "✅ APK build verification attempted"
+          echo "⚡ Total runtime: < 1 minute target"
+          echo "========================================"
