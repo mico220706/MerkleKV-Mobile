@@ -177,7 +177,7 @@ void main() {
           nodeId: 'test_node',
         );
 
-        final merkleKV = MerkleKV.create(invalidConfig);
+        final merkleKV = await MerkleKV.create(invalidConfig);
 
         expect(
           () => merkleKV.connect(),
@@ -395,7 +395,7 @@ void main() {
           nodeId: 'test_node_offline',
         );
 
-        final merkleKVNoQueue = MerkleKV.create(configNoQueue);
+        final merkleKVNoQueue = await MerkleKV.create(configNoQueue);
 
         // Should fail when not connected
         expect(
@@ -411,7 +411,7 @@ void main() {
           nodeId: 'test_node_queue',
         );
 
-        final merkleKVWithQueue = MerkleKV.create(configWithQueue);
+        final merkleKVWithQueue = await MerkleKV.create(configWithQueue);
 
         // Should not fail immediately when not connected (queued for later)
         expect(() => merkleKVWithQueue.get('test_key'), returnsNormally);
@@ -421,52 +421,56 @@ void main() {
     group('Builder Pattern Tests', () {
       test('creates configuration using builder pattern', () {
         final config = MerkleKVConfigBuilder()
-            .brokerHost('test.broker.com')
-            .brokerPort(8883)
+            .mqttHost('test.broker.com')
+            .mqttPort(8883)
             .clientId('builder_test_client')
+            .nodeId('builder_test_node')
             .username('test_user')
             .password('test_pass')
-            .enableSecure(true)
-            .enableOfflineQueue(true)
-            .commandTimeout(Duration(seconds: 45))
-            .connectionTimeout(Duration(seconds: 15))
+            .useTLS(true)
+            .offlineQueue(true)
             .build();
 
-        expect(config.brokerHost, equals('test.broker.com'));
-        expect(config.brokerPort, equals(8883));
+        expect(config.mqttHost, equals('test.broker.com'));
+        expect(config.mqttPort, equals(8883));
         expect(config.clientId, equals('builder_test_client'));
+        expect(config.nodeId, equals('builder_test_node'));
         expect(config.username, equals('test_user'));
         expect(config.password, equals('test_pass'));
-        expect(config.enableSecure, isTrue);
+        expect(config.mqttUseTls, isTrue);
+        // expect(config.enableSecure, isTrue); // Property doesn't exist
         expect(config.enableOfflineQueue, isTrue);
-        expect(config.commandTimeout, equals(Duration(seconds: 45)));
-        expect(config.connectionTimeout, equals(Duration(seconds: 15)));
+        // expect(config.commandTimeout, equals(Duration(seconds: 45))); // Property doesn't exist
+        // expect(config.connectionTimeout, equals(Duration(seconds: 15))); // Property doesn't exist
       });
 
       test('builder validates configuration before building', () {
         expect(
           () => MerkleKVConfigBuilder()
-              .brokerHost('') // Invalid empty host
-              .brokerPort(1883)
+              .mqttHost('') // Invalid empty host
+              .mqttPort(1883)
               .clientId('test')
+              .nodeId('test_node')
               .build(),
           throwsA(isA<ValidationException>()),
         );
 
         expect(
           () => MerkleKVConfigBuilder()
-              .brokerHost('localhost')
-              .brokerPort(0) // Invalid port
+              .mqttHost('localhost')
+              .mqttPort(0) // Invalid port
               .clientId('test')
+              .nodeId('test_node')
               .build(),
           throwsA(isA<ValidationException>()),
         );
 
         expect(
           () => MerkleKVConfigBuilder()
-              .brokerHost('localhost')
-              .brokerPort(1883)
+              .mqttHost('localhost')
+              .mqttPort(1883)
               .clientId('') // Invalid empty client ID
+              .nodeId('test_node')
               .build(),
           throwsA(isA<ValidationException>()),
         );

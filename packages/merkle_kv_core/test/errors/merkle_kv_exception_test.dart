@@ -127,7 +127,7 @@ void main() {
 
     group('TimeoutException', () {
       test('creates operation timeout exception', () {
-        final exception = TimeoutException.operationTimeout('get');
+        final exception = TimeoutException.operationTimeout('get', Duration(seconds: 30));
         expect(exception, isA<TimeoutException>());
         expect(exception.message, contains('Operation timed out'));
         expect(exception.message, contains('get'));
@@ -154,7 +154,7 @@ void main() {
       });
 
       test('timeout exception is subclass of MerkleKVException', () {
-        final exception = TimeoutException.operationTimeout('test');
+        final exception = TimeoutException.operationTimeout('test', Duration(seconds: 30));
         expect(exception, isA<MerkleKVException>());
       });
 
@@ -328,7 +328,7 @@ void main() {
       test('factory constructors create correct exception types', () {
         expect(ConnectionException.connectionTimeout(), isA<ConnectionException>());
         expect(ValidationException.invalidKey('test'), isA<ValidationException>());
-        expect(TimeoutException.operationTimeout('test'), isA<TimeoutException>());
+        expect(TimeoutException.operationTimeout('test', Duration(seconds: 30)), isA<TimeoutException>());
         expect(PayloadException.payloadTooLarge('test'), isA<PayloadException>());
         expect(StorageException.storageFailure('test'), isA<StorageException>());
       });

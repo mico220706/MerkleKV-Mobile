@@ -91,7 +91,7 @@ void main() {
 
     group('TimeoutException', () {
       test('creates operation timeout exception', () {
-        final exception = TimeoutException.operationTimeout('get');
+        final exception = TimeoutException.operationTimeout('get', Duration(seconds: 30));
         expect(exception, isA<TimeoutException>());
         expect(exception.message, contains('Operation timed out'));
         expect(exception.message, contains('get'));
