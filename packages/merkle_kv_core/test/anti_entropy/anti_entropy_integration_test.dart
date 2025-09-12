@@ -2,14 +2,36 @@ import 'dart:async';
 import 'package:test/test.dart';
 import 'package:merkle_kv_core/merkle_kv_core.dart';
 
+/// Mock message broker for testing
+class MockMessageBroker {
+  static final Map<String, List<void Function(String, String)>> _subscriptions = {};
+  
+  static void publish(String topic, String payload) {
+    final handlers = _subscriptions[topic] ?? [];
+    for (final handler in handlers) {
+      Future.microtask(() => handler(topic, payload));
+    }
+  }
+  
+  static void subscribe(String topic, void Function(String, String) handler) {
+    _subscriptions.putIfAbsent(topic, () => []).add(handler);
+  }
+  
+  static void unsubscribe(String topic, void Function(String, String) handler) {
+    _subscriptions[topic]?.remove(handler);
+  }
+  
+  static void clear() {
+    _subscriptions.clear();
+  }
+}
+
 /// Mock MQTT client for testing anti-entropy protocol
 class MockMqttClient implements MqttClientInterface {
   final List<MockMessage> publishedMessages = [];
-  final StreamController<MockMessage> _messageController = StreamController.broadcast();
   final StreamController<ConnectionState> _connectionStateController = StreamController.broadcast();
+  final Map<String, void Function(String, String)> _subscriptionHandlers = {};
   bool _isConnected = false;
-
-    Stream<MockMessage> get onMessage => _messageController.stream;
 
   @override
   bool get isConnected => _isConnected;
@@ -34,22 +56,29 @@ class MockMqttClient implements MqttClientInterface {
     final message = MockMessage(topic: topic, payload: payload);
     publishedMessages.add(message);
     
-    // Simulate message delivery to other nodes
-    Future.microtask(() => _messageController.add(message));
+    // Publish through mock broker to simulate real MQTT behavior
+    MockMessageBroker.publish(topic, payload);
   }
 
   @override
   Future<void> subscribe(String topic, void Function(String, String) onMessage) async {
-    // Mock implementation
+    _subscriptionHandlers[topic] = onMessage;
+    MockMessageBroker.subscribe(topic, onMessage);
   }
 
   @override
   Future<void> unsubscribe(String topic) async {
-    // Mock implementation
+    final handler = _subscriptionHandlers.remove(topic);
+    if (handler != null) {
+      MockMessageBroker.unsubscribe(topic, handler);
+    }
   }
 
   void dispose() {
-    _messageController.close();
+    for (final entry in _subscriptionHandlers.entries) {
+      MockMessageBroker.unsubscribe(entry.key, entry.value);
+    }
+    _subscriptionHandlers.clear();
     _connectionStateController.close();
   }
 }
@@ -78,6 +107,9 @@ void main() {
     late AntiEntropyProtocolImpl protocol2;
 
     setUp(() async {
+      // Clear mock broker before each test
+      MockMessageBroker.clear();
+      
       // Setup node 1
       final config1 = MerkleKVConfig.defaultConfig(
         host: 'localhost',
@@ -118,6 +150,10 @@ void main() {
 
       await mqttClient1.connect();
       await mqttClient2.connect();
+      
+      // Initialize protocols after connection
+      await protocol1.initialize();
+      await protocol2.initialize();
     });
 
     tearDown(() {
@@ -127,6 +163,7 @@ void main() {
       merkleTree2.dispose();
       mqttClient1.dispose();
       mqttClient2.dispose();
+      MockMessageBroker.clear();
     });
 
     test('nodes with identical state have matching root hashes', () async {
@@ -173,17 +210,21 @@ void main() {
     test('rate limiting blocks excessive sync requests', () async {
       protocol1.configureRateLimit(requestsPerSecond: 1.0);
 
-      // First request should succeed
+      // First request should start
       final future1 = protocol1.performSync('node2');
 
-      // Second request should be rate limited
-      expect(() => protocol1.performSync('node2'),
-             throwsA(isA<SyncException>()
-                 .having((e) => e.code, 'code', SyncErrorCode.rateLimited)));
+      // Immediate second request should be rate limited
+      try {
+        await protocol1.performSync('node2');
+        fail('Expected rate limiting exception');
+      } catch (e) {
+        expect(e, isA<SyncException>());
+        expect((e as SyncException).code, equals(SyncErrorCode.rateLimited));
+      }
 
       expect(metrics1.antiEntropyRateLimitHits, equals(1));
 
-      // Cleanup
+      // Cleanup first request
       try { await future1; } catch (_) {}
     });
 
@@ -387,11 +428,12 @@ void main() {
         nodeId: 'test-node',
         defaultTimeoutMs: 50, // Very short timeout
       );
+      await protocol.initialize();
 
-      // This should timeout quickly since no response will come
-      expect(protocol.performSync('nonexistent-node'), 
-             throwsA(isA<SyncException>()
-                 .having((e) => e.code, 'code', SyncErrorCode.timeout)));
+      // This should timeout quickly since no response will come from nonexistent node
+      final result = await protocol.performSync('nonexistent-node');
+      expect(result.success, isFalse);
+      expect(result.errorCode, equals(SyncErrorCode.timeout));
 
       protocol.dispose();
     });
