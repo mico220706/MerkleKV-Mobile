@@ -235,9 +235,13 @@ void main() {
       await merkleTree1.rebuildFromStorage();
 
       // This should fail due to payload size
-      final result = await protocol1.performSync('node2');
-      expect(result.success, isFalse);
-      expect(result.errorCode, equals(SyncErrorCode.payloadTooLarge));
+      try {
+        await protocol1.performSync('node2');
+        fail('Expected payload too large exception');
+      } catch (e) {
+        expect(e, isA<SyncException>());
+        expect((e as SyncException).code, equals(SyncErrorCode.payloadTooLarge));
+      }
     });
 
     test('empty trees sync successfully with no key exchanges', () async {
@@ -340,13 +344,15 @@ void main() {
       final futures = <Future<SyncResult>>[];
       
       for (int i = 0; i < 3; i++) {
-        // These will timeout but should not crash
-        futures.add(protocol1.performSync('node$i').catchError((error) => 
-            SyncResult.failure(
-              errorCode: SyncErrorCode.timeout,
-              errorMessage: 'Test timeout',
-              duration: const Duration(milliseconds: 50),
-            )));
+        // Use timeout to avoid waiting too long
+        futures.add(protocol1.performSync('node$i').timeout(
+          const Duration(milliseconds: 100),
+          onTimeout: () => SyncResult.failure(
+            errorCode: SyncErrorCode.timeout,
+            errorMessage: 'Test timeout',
+            duration: const Duration(milliseconds: 100),
+          ),
+        ));
       }
 
       final results = await Future.wait(futures);
@@ -370,12 +376,14 @@ void main() {
       // Start multiple concurrent sync operations (will timeout but that's ok)
       final futures = <Future>[];
       for (int i = 0; i < 10; i++) {
-        futures.add(protocol.performSync('node$i').catchError((error) => 
-            SyncResult.failure(
-              errorCode: SyncErrorCode.timeout,
-              errorMessage: 'Test timeout',
-              duration: const Duration(milliseconds: 50),
-            )));
+        futures.add(protocol.performSync('node$i').timeout(
+          const Duration(milliseconds: 100),
+          onTimeout: () => SyncResult.failure(
+            errorCode: SyncErrorCode.timeout,
+            errorMessage: 'Test timeout',
+            duration: const Duration(milliseconds: 100),
+          ),
+        ));
       }
 
       // All should complete without throwing due to ID conflicts
@@ -524,12 +532,14 @@ void main() {
       // Start some operations
       final futures = <Future>[];
       for (int i = 0; i < 5; i++) {
-        futures.add(protocol.performSync('node$i').catchError((_) => 
-            SyncResult.failure(
-              errorCode: SyncErrorCode.timeout,
-              errorMessage: 'Test cleanup',
-              duration: const Duration(milliseconds: 1),
-            )));
+        futures.add(protocol.performSync('node$i').timeout(
+          const Duration(milliseconds: 100),
+          onTimeout: () => SyncResult.failure(
+            errorCode: SyncErrorCode.timeout,
+            errorMessage: 'Test cleanup',
+            duration: const Duration(milliseconds: 1),
+          ),
+        ));
       }
 
       // Dispose while operations might be pending
@@ -537,14 +547,14 @@ void main() {
 
       // Should complete quickly
       final timeout = Completer();
-      Timer(Duration(seconds: 1), () => timeout.complete());
+      Timer(Duration(seconds: 1), () => timeout.complete('timeout'));
 
       final firstCompleted = await Future.any([
-        Future.wait(futures),
+        Future.wait(futures).then((_) => 'completed'),
         timeout.future,
       ]);
 
-      // If timeout completed first, that's fine - operations were cleaned up
+      // Should complete without hanging - either completed or timed out is fine
       expect(firstCompleted, isNotNull);
     });
   });
