@@ -49,6 +49,7 @@ class MockMqttClient implements MqttClientInterface {
       throw connectionException ?? Exception('Connection failed');
     }
     
+    // Emit intermediate state change to simulate real MQTT client behavior
     await Future.delayed(Duration(milliseconds: 10));
     setState(ConnectionState.connected);
   }
@@ -176,8 +177,11 @@ void main() {
         final events = <ConnectionStateEvent>[];
         final subscription = manager.connectionState.listen(events.add);
 
-        // Connection should not throw exception, but should timeout and update state
-        await manager.connect();
+        // Connection should throw timeout exception
+        await expectLater(
+          manager.connect(),
+          throwsA(isA<Exception>()),
+        );
 
         // Should have timeout event
         expect(events.any((e) => e.reason?.contains('timeout') == true), isTrue);
@@ -409,7 +413,14 @@ void main() {
 
           await expectLater(manager.connect(), throwsA(isA<Exception>()));
           
-          final errorEvent = events.firstWhere((e) => e.error != null);
+          // Wait a bit for events to be processed
+          await Future.delayed(Duration(milliseconds: 10));
+          
+          // Find error events (should have non-null error field)
+          final errorEvents = events.where((e) => e.error != null);
+          expect(errorEvents.isNotEmpty, isTrue, reason: 'Should have at least one error event');
+          
+          final errorEvent = errorEvents.first;
           expect(errorEvent.reason, contains('Connection failed'));
           
           await subscription.cancel();
