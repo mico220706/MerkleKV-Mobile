@@ -290,7 +290,6 @@ void main() {
       
       expect(payloadTooLargeCaught, isTrue, reason: 'Expected payload too large SyncException. Actual exception: $actualException');
     });
-    });
 
     test('empty trees sync successfully with no key exchanges', () async {
       // Both trees are empty
