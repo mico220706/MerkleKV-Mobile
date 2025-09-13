@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:test/test.dart';
 import 'package:merkle_kv_core/merkle_kv.dart';
 import 'package:merkle_kv_core/src/config/merkle_kv_config.dart';
+import 'package:merkle_kv_core/src/config/invalid_config_exception.dart';
 import 'package:merkle_kv_core/src/errors/merkle_kv_exception.dart';
 
 void main() {
@@ -16,6 +17,7 @@ void main() {
         nodeId: 'test_node',
         username: 'test_user',
         password: 'test_pass',
+        mqttUseTls: true, // Enable TLS when using credentials
       );
     });
 
@@ -25,16 +27,14 @@ void main() {
       });
 
       test('throws ValidationException for invalid configuration', () {
-        final invalidConfig = MerkleKVConfig.create(
-          mqttHost: '', // Invalid empty host
-          mqttPort: 1883,
-          clientId: 'test_client',
-          nodeId: 'test_node',
-        );
-        
         expect(
-          () => MerkleKV.create(invalidConfig),
-          throwsA(isA<ValidationException>()),
+          () => MerkleKVConfig.create(
+            mqttHost: '', // Invalid empty host
+            mqttPort: 1883,
+            clientId: 'test_client',
+            nodeId: 'test_node',
+          ),
+          throwsA(isA<InvalidConfigException>()),
         );
       });
 
