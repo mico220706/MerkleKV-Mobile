@@ -1,3 +1,6 @@
+import 'dart:io';
+import '../errors/merkle_kv_exception.dart';
+
 /// Error classifier for determining which errors are retriable
 class ErrorClassifier {
   /// List of error codes that are not retriable
@@ -27,7 +30,7 @@ class ErrorClassifier {
     
     // Handle network-related exceptions
     if (error is SocketException || 
-        error is HandshakeException ||
+        error is TlsException ||
         error is ConnectionException ||
         error is MqttConnectionException) {
       return true;

@@ -4,6 +4,13 @@ A distributed key-value store optimized for mobile edge devices with MQTT-based 
 
 ## Features
 
+### Topic Prefix Configuration & Multi-Tenant Isolation
+- **UTF-8 Byte Length Validation**: Prefixes ≤50 bytes, Client IDs ≤128 bytes, Topics ≤100 bytes
+- **Character Restrictions**: Only `[A-Za-z0-9_/-]` allowed, blocks MQTT wildcards
+- **Multi-Tenant Support**: Prefix-based isolation with canonical topic schemes
+- **Backward Compatibility**: Enhanced validation without breaking existing APIs
+- **Comprehensive Validation**: Integrated into MerkleKVConfig and TopicScheme
+
 ### Anti-Entropy Protocol
 - **SYNC/SYNC_KEYS Operations**: Efficient state synchronization between nodes
 - **Payload Validation**: 512KiB size limits with precise overhead calculation
@@ -62,6 +69,39 @@ await client.start();
 await client.set('user:123', 'Alice');
 final value = await client.get('user:123');
 await client.delete('user:123');
+```
+
+### Multi-Tenant Configuration
+
+```dart
+// Configure tenant-specific MerkleKV instance
+final config = MerkleKVConfig(
+  mqttHost: 'mqtt.example.com',
+  mqttPort: 1883,
+  clientId: 'mobile-device-001',
+  nodeId: 'node-001',
+  topicPrefix: 'tenant-a/production', // Tenant isolation
+);
+
+// Topics will be generated as:
+// Commands: tenant-a/production/mobile-device-001/cmd
+// Responses: tenant-a/production/mobile-device-001/res
+// Replication: tenant-a/production/replication/events
+
+// Multiple tenant environments
+final prodConfig = MerkleKVConfig(
+  mqttHost: 'mqtt.company.com',
+  clientId: 'app-device-123',
+  nodeId: 'prod-node-1',
+  topicPrefix: 'myapp/production',
+);
+
+final stagingConfig = MerkleKVConfig(
+  mqttHost: 'mqtt.company.com', 
+  clientId: 'app-device-123',
+  nodeId: 'staging-node-1',
+  topicPrefix: 'myapp/staging',
+);
 ```
 
 ### Event Publishing

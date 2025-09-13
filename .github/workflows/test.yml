@@ -4,35 +4,22 @@ on: [push, pull_request]
 jobs:
   unit:
     runs-on: ubuntu-latest
-    container:
-      image: dart:3.9.3
     defaults:
       run:
         working-directory: packages/merkle_kv_core
     steps:
       - uses: actions/checkout@v4
-      - name: Fix missing frontend_server.dart.snapshot
-        run: |
-          # Remove the AOT snapshot and let Dart regenerate JIT snapshot on demand
-          rm -f /usr/lib/dart/bin/snapshots/frontend_server.dart.snapshot
-          rm -f /usr/lib/dart/bin/snapshots/frontend_server_aot.dart.snapshot
-          # Warm up dart to generate snapshots
-          dart --version
-          echo 'void main() { print("test"); }' > /tmp/warmup.dart
-          dart run /tmp/warmup.dart || true
-      - run: dart pub get
+      - name: Setup Flutter SDK
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.24.5'
+          channel: 'stable'
+      - run: flutter pub get
       - name: Run unit tests
         run: |
-          # Basic validation tests bypassing broken dart test framework
-          echo "🧪 Running basic validation..."
-          
-          # Test pubspec and dependencies
-          dart pub deps
-          echo "✅ Dependencies resolved successfully"
-          
-          # Test basic compilation check
-          echo "✅ Compilation validation completed"
-          echo "✅ Static analysis completed (warnings ignored)"
+          echo "🧪 Running unit tests with Flutter..."
+          flutter test --reporter=compact --timeout=30s --concurrency=1
+          echo "✅ Unit tests completed successfully"
 
   integration:
     runs-on: ubuntu-latest
@@ -75,38 +62,24 @@ jobs:
           
           # Verify service status
           sudo systemctl status mosquitto
-      - name: Setup Dart SDK
-        uses: dart-lang/setup-dart@v1
+      - name: Setup Flutter SDK
+        uses: subosito/flutter-action@v2
         with:
-          sdk: stable
-      - name: Clean Dart cache to avoid corruption
-        run: |
-          rm -rf ~/.dart
-          rm -rf ~/.pub-cache
-      - name: Integration smoke test
-        run: |
-          dart pub get
-          dart pub deps
-          echo "✅ Integration dependencies resolved"
+          flutter-version: '3.24.5'
+          channel: 'stable'
       - name: Run integration tests
         run: |
-          # Basic integration validation bypassing broken dart test framework
-          echo "🚀 Running basic integration validation..."
+          flutter pub get
+          echo "🚀 Running integration tests..."
           
           # Test MQTT connectivity using netcat
           if nc -z 127.0.0.1 1883 2>/dev/null; then
             echo "✅ MQTT broker is accessible on port 1883"
           else
             echo "❌ MQTT broker is not accessible"
-            echo "Debug: Mosquitto service status:"
-            sudo systemctl status mosquitto || true
-            echo "Debug: Network connections:"
-            netstat -tulpn | grep 1883 || true
             exit 1
           fi
           
-          # Test dependencies resolution
-          dart pub deps
-          echo "✅ Integration dependencies resolved"
-          
-          echo "✅ Integration validation completed"
+          # Run actual integration tests
+          flutter test --reporter=compact --timeout=60s --concurrency=1
+          echo "✅ Integration tests completed"

@@ -1,4 +1,5 @@
 import '../config/invalid_config_exception.dart';
+import 'topic_validator.dart';
 
 /// Canonical topic scheme per Locked Spec §2.
 ///
@@ -26,120 +27,47 @@ class TopicScheme {
   /// Creates a TopicScheme with normalization and validation.
   ///
   /// Normalizes [rawPrefix] by trimming whitespace and removing leading/trailing
-  /// slashes. Validates both prefix and clientId according to MQTT topic rules.
+  /// slashes. Validates both prefix and clientId according to enhanced multi-tenant
+  /// isolation requirements with UTF-8 byte length validation.
   ///
   /// Throws [InvalidConfigException] if validation fails.
   static TopicScheme create(String rawPrefix, String rawClientId) {
-    // Normalize prefix
-    final normalizedPrefix = _normalizePrefix(rawPrefix);
+    // Normalize prefix using enhanced validation
+    final normalizedPrefix = TopicValidator.normalizePrefix(rawPrefix);
 
-    // Validate prefix
-    _validatePrefix(normalizedPrefix);
+    // Validate prefix using enhanced multi-tenant validation
+    try {
+      TopicValidator.validatePrefix(normalizedPrefix);
+    } catch (e) {
+      throw InvalidConfigException(
+        'Topic prefix validation failed: ${e.toString().replaceFirst('ArgumentError: ', '')}',
+        'prefix',
+      );
+    }
 
-    // Validate clientId
-    validateClientId(rawClientId);
+    // Validate clientId using enhanced validation
+    try {
+      TopicValidator.validateClientId(rawClientId);
+    } catch (e) {
+      throw InvalidConfigException(
+        'Client ID validation failed: ${e.toString().replaceFirst('ArgumentError: ', '')}',
+        'clientId',
+      );
+    }
 
     return TopicScheme._(prefix: normalizedPrefix, clientId: rawClientId);
   }
 
-  /// Normalizes prefix by trimming and removing leading/trailing slashes.
-  static String _normalizePrefix(String rawPrefix) {
-    String normalized = rawPrefix.trim();
-
-    // Remove leading slashes
-    while (normalized.startsWith('/')) {
-      normalized = normalized.substring(1);
-    }
-
-    // Remove trailing slashes
-    while (normalized.endsWith('/')) {
-      normalized = normalized.substring(0, normalized.length - 1);
-    }
-
-    // Return default if empty after normalization
-    if (normalized.isEmpty) {
-      return 'mkv';
-    }
-
-    return normalized;
-  }
-
-  /// Validates prefix according to MQTT topic rules.
-  static void _validatePrefix(String prefix) {
-    if (prefix.isEmpty) {
-      throw const InvalidConfigException(
-        'Topic prefix cannot be empty after normalization',
-        'prefix',
-      );
-    }
-
-    // Check length (approximately 100 bytes)
-    if (prefix.length > 100) {
-      throw const InvalidConfigException(
-        'Topic prefix cannot exceed 100 characters',
-        'prefix',
-      );
-    }
-
-    // Check for invalid characters
-    if (prefix.contains('+')) {
-      throw const InvalidConfigException(
-        'Topic prefix cannot contain wildcard character \'+\'',
-        'prefix',
-      );
-    }
-
-    if (prefix.contains('#')) {
-      throw const InvalidConfigException(
-        'Topic prefix cannot contain wildcard character \'#\'',
-        'prefix',
-      );
-    }
-
-    // Check allowed charset: [A-Za-z0-9_/-]
-    final allowedPattern = RegExp(r'^[A-Za-z0-9_/-]+$');
-    if (!allowedPattern.hasMatch(prefix)) {
-      throw const InvalidConfigException(
-        'Topic prefix contains invalid characters. Only [A-Za-z0-9_/-] are allowed',
-        'prefix',
-      );
-    }
-  }
-
-  /// Validates clientId according to MQTT client identifier rules.
+  /// Validates clientId according to enhanced multi-tenant requirements.
+  ///
+  /// This method is maintained for backward compatibility and delegates
+  /// to TopicValidator.validateClientId() for consistent validation.
   static void validateClientId(String clientId) {
-    if (clientId.isEmpty) {
-      throw const InvalidConfigException(
-        'Client ID cannot be empty',
-        'clientId',
-      );
-    }
-
-    if (clientId.length > 128) {
-      throw const InvalidConfigException(
-        'Client ID cannot exceed 128 characters',
-        'clientId',
-      );
-    }
-
-    // Check for invalid characters
-    if (clientId.contains('/')) {
-      throw const InvalidConfigException(
-        'Client ID cannot contain \'/\' character',
-        'clientId',
-      );
-    }
-
-    if (clientId.contains('+')) {
-      throw const InvalidConfigException(
-        'Client ID cannot contain wildcard character \'+\'',
-        'clientId',
-      );
-    }
-
-    if (clientId.contains('#')) {
-      throw const InvalidConfigException(
-        'Client ID cannot contain wildcard character \'#\'',
+    try {
+      TopicValidator.validateClientId(clientId);
+    } catch (e) {
+      throw InvalidConfigException(
+        'Client ID validation failed: ${e.toString().replaceFirst('ArgumentError: ', '')}',
         'clientId',
       );
     }

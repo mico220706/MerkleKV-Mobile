@@ -1,15 +1,3 @@
-import 'da# Integration test timing constants
-class IntegrationTestTimings {
-  static const brokerConnectTimeout = Duration(seconds: 5);
-  static const stateUpdateDelay = Duration(milliseconds: 50);
-  static const disconnectionDelay = Duration(milliseconds: 100);
-  static const stabilityWait = Duration(seconds: 2);
-  static const briefDelay = Duration(milliseconds: 100);
-  static const maxConnectionTime = Duration(seconds: 5);
-  static const veryLongConnectionTime = Duration(seconds: 10);
-  static const averageConnectionTimeLimit = 3000; // milliseconds
-  static const maxSingleConnectionTime = 10000; // milliseconds
-}
 import 'dart:io';
 import 'package:test/test.dart';
 
@@ -28,6 +16,8 @@ class IntegrationTestTimings {
   static const briefDelay = Duration(milliseconds: 100);
   static const maxConnectionTime = Duration(seconds: 5);
   static const veryLongConnectionTime = Duration(seconds: 10);
+  static const averageConnectionTimeLimit = 3000; // milliseconds
+  static const maxSingleConnectionTime = 10000; // milliseconds
 }
 
 /// Integration tests for ConnectionLifecycleManager with real MQTT broker.
