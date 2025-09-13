@@ -385,7 +385,7 @@ jobs:
             cd tests/integration
             
             # Execute integration tests with extended timeout for network operations
-            if dart test --reporter=expanded --timeout=60s; then
+            if flutter test --reporter=expanded --timeout=60s --concurrency=1; then
               echo "✅ Integration tests completed successfully"
             else
               echo "❌ Integration tests failed"
@@ -712,7 +712,7 @@ jobs:
             # Run core package tests
             if [ -d "packages/merkle_kv_core" ]; then
               cd packages/merkle_kv_core
-              if ! dart test --reporter=compact --timeout=30s; then
+              if ! flutter test --reporter=compact --timeout=30s --concurrency=1; then
                 echo "❌ Core package tests failed - blocking release"
                 exit 1
               fi
